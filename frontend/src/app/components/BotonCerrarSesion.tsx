@@ -1,28 +1,24 @@
 "use client";
 
-import { LogOut } from "lucide-react";
-// Agregamos un "../" extra para que la ruta llegue a la carpeta lib correcta
-import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
+// Importamos tu conexión centralizada limpia
+import { supabase } from "../../../lib/supabase";
 
 export default function BotonCerrarSesion() {
   const router = useRouter();
 
   const handleCerrarSesion = async () => {
-    // 1. Cerramos sesión en Supabase
     await supabase.auth.signOut();
-
-    // 2. Redirigimos al inicio
-    router.push("/");
+    router.push("/login");
+    router.refresh();
   };
 
   return (
     <button
       onClick={handleCerrarSesion}
-      className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors w-full text-left"
+      className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition-colors"
     >
-      <LogOut className="w-5 h-5" />
-      <span>Cerrar Sesión</span>
+      Cerrar Sesión
     </button>
   );
 }

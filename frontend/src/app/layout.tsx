@@ -1,26 +1,20 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-// IMPORTAMOS EL GUARDIÁN 👇
-import GuardiaRutas from "./components/GuardiaRutas";
 
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
+export const metadata = {
   title: "PsiClinic - Plataforma Clínica",
-  description: "Sistema de gestión para profesionales de la salud mental",
+  description: "Gestión clínica integral y segura.",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="es">
-      <body className={inter.className}>
-        {/* ENVOLVEMOS LA APLICACIÓN CON EL GUARDIÁN 👇 */}
-        <GuardiaRutas>{children}</GuardiaRutas>
+      <body className="bg-gray-50 text-gray-900 font-sans antialiased">
+        {/* Ya no hay GuardiaRutas bloqueando la carga, el middleware se encarga */}
+        {children}
       </body>
     </html>
   );

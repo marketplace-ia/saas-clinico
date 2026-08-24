@@ -1,78 +1,72 @@
-import { ReactNode } from "react";
+"use client";
+
 import Link from "next/link";
-import {
-  LayoutDashboard,
-  Calendar,
-  FileText,
-  CreditCard,
-  Activity,
-} from "lucide-react";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, CalendarPlus, History, Activity } from "lucide-react";
 import BotonCerrarSesion from "../components/BotonCerrarSesion";
 
-export default function DashboardPacienteLayout({
+const menu = [
+  { name: "Mi Resumen", href: "/dashboard-paciente", icon: LayoutDashboard },
+  {
+    name: "Agendar Cita",
+    href: "/dashboard-paciente/agendar",
+    icon: CalendarPlus,
+  },
+  {
+    name: "Mi Historial",
+    href: "/dashboard-paciente/historial",
+    icon: History,
+  },
+];
+
+export default function PacienteLayout({
   children,
 }: {
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
-      {/* Sidebar / Menú Lateral */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex">
-        {/* Logo de la Clínica */}
-        <div className="h-20 flex items-center px-8 border-b border-slate-100">
-          <Activity className="w-7 h-7 text-emerald-600 mr-3" />
-          <span className="font-bold text-xl text-slate-800 tracking-tight">
-            PsiClinic
-          </span>
+    <div className="flex h-screen bg-slate-50">
+      {/* Sidebar - Conflicto de Tailwind resuelto */}
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 shrink-0">
+        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+          <div className="bg-indigo-600 p-2 rounded-lg">
+            <Activity className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-bold text-slate-900">Mi Portal</span>
         </div>
 
-        {/* Enlaces de Navegación */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {/* Enlace Activo (Principal) */}
-          <Link
-            href="/dashboard-paciente"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium bg-emerald-50 text-emerald-700 rounded-xl transition-colors"
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            <span>Mi Resumen</span>
-          </Link>
-
-          {/* Enlaces a "Próximamente" */}
-          <Link
-            href="/proximamente"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <Calendar className="w-5 h-5" />
-            <span>Mis Citas</span>
-          </Link>
-
-          <Link
-            href="/proximamente"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <FileText className="w-5 h-5" />
-            <span>Mi Historial Médico</span>
-          </Link>
-
-          <Link
-            href="/proximamente"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <CreditCard className="w-5 h-5" />
-            <span>Pagos y Facturas</span>
-          </Link>
+          {menu.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-sm ${
+                  isActive
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Icon
+                  className={`w-5 h-5 ${isActive ? "text-indigo-600" : "text-slate-400"}`}
+                />
+                {item.name}
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* Botón de Cerrar Sesión (Componente Universal) */}
-        <div className="p-4 border-t border-slate-100">
+        {/* Botón Cerrar Sesión */}
+        <div className="p-4 border-t border-slate-200">
           <BotonCerrarSesion />
         </div>
       </aside>
 
-      {/* Contenido Principal */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
-        {children}
-      </main>
+      <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }

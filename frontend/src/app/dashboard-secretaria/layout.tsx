@@ -1,81 +1,83 @@
-import { ReactNode } from "react";
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Calendar,
   Users,
-  Wallet,
+  CreditCard,
   Activity,
 } from "lucide-react";
 import BotonCerrarSesion from "../components/BotonCerrarSesion";
 
-export default function DashboardSecretariaLayout({
+const menu = [
+  {
+    name: "Control General",
+    href: "/dashboard-secretaria",
+    icon: LayoutDashboard,
+  },
+  {
+    name: "Gestión de Citas",
+    href: "/dashboard-secretaria/citas",
+    icon: Calendar,
+  },
+  { name: "Directorio", href: "/dashboard-secretaria/directorio", icon: Users },
+  {
+    name: "Facturación",
+    href: "/dashboard-secretaria/facturacion",
+    icon: CreditCard,
+  },
+];
+
+export default function SecretariaLayout({
   children,
 }: {
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
-      {/* Sidebar / Menú Lateral */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex">
-        {/* Logo de la Clínica */}
-        <div className="h-20 flex items-center px-8 border-b border-slate-100">
-          <Activity className="w-7 h-7 text-purple-600 mr-3" />
-          <span className="font-bold text-xl text-slate-800 tracking-tight">
-            PsiClinic{" "}
-            <span className="text-sm font-normal text-slate-500 ml-1">
-              Admin
-            </span>
-          </span>
+    <div className="flex h-screen bg-slate-50">
+      {/* Sidebar - Conflicto de Tailwind resuelto */}
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 shrink-0">
+        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+          <div className="bg-indigo-600 p-2 rounded-lg">
+            <Activity className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-bold text-slate-900">PsiClinic</span>
         </div>
 
-        {/* Enlaces de Navegación */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {/* Enlace Activo (Principal) */}
-          <Link
-            href="/dashboard-secretaria"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium bg-purple-50 text-purple-700 rounded-xl transition-colors"
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            <span>Recepción</span>
-          </Link>
-
-          {/* Enlaces a "Próximamente" */}
-          <Link
-            href="/proximamente"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <Calendar className="w-5 h-5" />
-            <span>Calendario Global</span>
-          </Link>
-
-          <Link
-            href="/proximamente"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <Users className="w-5 h-5" />
-            <span>Gestión de Pacientes</span>
-          </Link>
-
-          <Link
-            href="/proximamente"
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <Wallet className="w-5 h-5" />
-            <span>Pagos e Ingresos</span>
-          </Link>
+          {menu.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-sm ${
+                  isActive
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Icon
+                  className={`w-5 h-5 ${isActive ? "text-indigo-600" : "text-slate-400"}`}
+                />
+                {item.name}
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* Botón de Cerrar Sesión (Componente Universal) */}
-        <div className="p-4 border-t border-slate-100">
+        {/* Botón Cerrar Sesión */}
+        <div className="p-4 border-t border-slate-200">
           <BotonCerrarSesion />
         </div>
       </aside>
 
-      {/* Contenido Principal */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
-        {children}
-      </main>
+      <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }
