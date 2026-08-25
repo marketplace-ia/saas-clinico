@@ -2,33 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Calendar,
-  Users,
-  CreditCard,
-  Activity,
-} from "lucide-react";
-import BotonCerrarSesion from "../components/BotonCerrarSesion";
-
-const menu = [
-  {
-    name: "Control General",
-    href: "/dashboard-secretaria",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Gestión de Citas",
-    href: "/dashboard-secretaria/citas",
-    icon: Calendar,
-  },
-  { name: "Directorio", href: "/dashboard-secretaria/directorio", icon: Users },
-  {
-    name: "Facturación",
-    href: "/dashboard-secretaria/facturacion",
-    icon: CreditCard,
-  },
-];
+import { supabase } from "../../../lib/supabase";
+import { useState } from "react";
 
 export default function SecretariaLayout({
   children,
@@ -36,48 +11,152 @@ export default function SecretariaLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  const handleCerrarSesion = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/login-personal";
+  };
+
+  const links = [
+    {
+      name: "Panel Principal",
+      href: "/dashboard-secretaria",
+      icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
+    },
+    {
+      name: "Gestión de Citas",
+      href: "/dashboard-secretaria/citas",
+      icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    },
+    {
+      name: "Directorio",
+      href: "/dashboard-secretaria/directorio",
+      icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+    },
+  ];
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      {/* Sidebar - Conflicto de Tailwind resuelto */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 shrink-0">
-        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-          <div className="bg-indigo-600 p-2 rounded-lg">
-            <Activity className="w-6 h-6 text-white" />
+    <div className="flex flex-col md:flex-row min-h-screen bg-purple-50/30 font-sans overflow-hidden">
+      {/* 📱 CABECERA MÓVIL */}
+      <div className="md:hidden bg-white border-b border-gray-200 p-4 flex justify-between items-center z-50">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-purple-600 text-white rounded-lg flex items-center justify-center font-bold shadow-sm">
+            Ψ
           </div>
-          <span className="text-xl font-bold text-slate-900">PsiClinic</span>
+          <span className="font-bold text-xl text-gray-900">PsiClinic</span>
+        </div>
+        <button
+          onClick={() => setMenuAbierto(!menuAbierto)}
+          className="text-gray-600 hover:text-purple-600 focus:outline-none p-1"
+        >
+          <svg
+            className="w-7 h-7"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            {menuAbierto ? (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            ) : (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      {/* 💻 BARRA LATERAL */}
+      <aside
+        className={`
+        ${menuAbierto ? "flex" : "hidden"} 
+        md:flex flex-col w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-gray-200 shrink-0
+        absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen top-18.25 md:top-0 shadow-xl md:shadow-none transition-all
+      `}
+      >
+        <div className="p-8 hidden md:block">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-purple-600 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-sm">
+              Ψ
+            </div>
+            <span className="font-bold text-2xl text-gray-900 tracking-tight">
+              PsiClinic
+            </span>
+          </div>
+          <p className="text-xs font-black text-gray-400 uppercase tracking-wider ml-13">
+            Recepción
+          </p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {menu.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
+        <nav className="flex-1 px-4 py-6 md:py-0 space-y-2 overflow-y-auto">
+          {links.map((link) => {
+            const isActive = pathname === link.href;
             return (
               <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-sm ${
+                key={link.name}
+                href={link.href}
+                onClick={() => setMenuAbierto(false)}
+                className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-medium transition-all duration-200 ${
                   isActive
-                    ? "bg-indigo-50 text-indigo-700"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-purple-50 text-purple-700 shadow-sm"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
-                <Icon
-                  className={`w-5 h-5 ${isActive ? "text-indigo-600" : "text-slate-400"}`}
-                />
-                {item.name}
+                <svg
+                  className={`w-5 h-5 ${isActive ? "text-purple-600" : "text-gray-400"}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d={link.icon}
+                  ></path>
+                </svg>
+                {link.name}
               </Link>
             );
           })}
         </nav>
 
-        {/* Botón Cerrar Sesión */}
-        <div className="p-4 border-t border-slate-200">
-          <BotonCerrarSesion />
+        <div className="p-4 border-t border-gray-100 mt-auto bg-white">
+          <button
+            onClick={handleCerrarSesion}
+            className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-2xl transition font-medium"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              ></path>
+            </svg>
+            Cerrar Sesión
+          </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      {/* 📄 CONTENIDO PRINCIPAL */}
+      <main className="flex-1 w-full h-[calc(100vh-73px)] md:h-screen overflow-y-auto overflow-x-hidden relative">
+        {children}
+      </main>
     </div>
   );
 }
