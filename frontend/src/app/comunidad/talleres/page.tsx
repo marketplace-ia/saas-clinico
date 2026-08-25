@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
 import Link from "next/link";
 
-// 1. Creamos la "molécula" del Taller para que TypeScript esté feliz
+// 1. La molécula exacta que coincide con nuestra base de datos
 interface Taller {
   id: number;
   titulo: string;
@@ -22,77 +22,51 @@ export default function TalleresComunidadPage() {
   const [rolUsuario, setRolUsuario] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  // 2. Le indicamos que este arreglo es estrictamente de tipo Taller
-  const talleres: Taller[] = [
-    {
-      id: 1,
-      titulo: "Crianza Positiva en la Era Digital",
-      instructor: "Dra. María Fernández",
-      fecha: "15 de Octubre",
-      hora: "10:00 AM - 12:00 PM",
-      modalidad: "Zoom (En vivo)",
-      precio: 15.0,
-      cupos: 5,
-      descripcion:
-        "Aprende a establecer límites sanos con las pantallas y redes sociales sin generar conflictos constantes en casa.",
-      color: "from-teal-500 to-teal-700",
-    },
-    {
-      id: 2,
-      titulo: "Gestión del Estrés para Emprendedores",
-      instructor: "Dr. Roberto Sánchez",
-      fecha: "22 de Octubre",
-      hora: "06:00 PM - 08:00 PM",
-      modalidad: "Presencial (Auditorio)",
-      precio: 25.0,
-      cupos: 12,
-      descripcion:
-        "Estrategias cognitivo-conductuales para evitar el Burnout cuando tu negocio depende al 100% de ti.",
-      color: "from-emerald-500 to-emerald-700",
-    },
-    {
-      id: 3,
-      titulo: "Taller Gratuito: Primeros Auxilios Psicológicos",
-      instructor: "Equipo PsiClinic",
-      fecha: "05 de Noviembre",
-      hora: "09:00 AM - 11:00 AM",
-      modalidad: "Zoom (En vivo)",
-      precio: 0,
-      cupos: 50,
-      descripcion:
-        "Entrenamiento básico para saber cómo actuar y qué decir (y qué no decir) ante una crisis emocional de un familiar o amigo.",
-      color: "from-blue-500 to-blue-700",
-    },
-  ];
+  // 2. Estado dinámico para guardar los talleres reales
+  const [talleres, setTalleres] = useState<Taller[]>([]);
 
   useEffect(() => {
-    const verificarIdentidad = async () => {
+    const cargarDatos = async () => {
       try {
+        // A. Identificamos al usuario
         const {
           data: { user },
         } = await supabase.auth.getUser();
         if (user && user.email) {
-          const { data } = await supabase
+          const { data: rolData } = await supabase
             .from("roles_usuarios")
             .select("rol")
             .eq("correo", user.email)
             .maybeSingle();
 
-          if (data) {
-            setRolUsuario(data.rol);
+          if (rolData) {
+            setRolUsuario(rolData.rol);
           }
         }
+
+        // B. Traemos los talleres de Supabase
+        const { data: datosBD, error } = await supabase
+          .from("talleres")
+          .select("*")
+          .order("id", { ascending: true });
+
+        if (error) {
+          console.error("Error consultando talleres:", error);
+        }
+
+        if (datosBD) {
+          setTalleres(datosBD);
+        }
       } catch (error) {
-        console.error("Error al verificar usuario:", error);
+        console.error("Error al cargar la base de datos:", error);
       } finally {
         setCargando(false);
       }
     };
 
-    verificarIdentidad();
+    cargarDatos();
   }, []);
 
-  // 3. Reemplazamos el 'any' por nuestro nuevo tipo 'Taller'
   const handleInscripcion = (taller: Taller) => {
     if (taller.precio === 0) {
       alert(
@@ -125,7 +99,7 @@ export default function TalleresComunidadPage() {
           </p>
         </div>
 
-        {/* Botón solo para Psicólogos: Crear Taller */}
+        {/* Botón solo para Psicólogos */}
         {!cargando && rolUsuario === "psicologo" && (
           <button className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center gap-2 whitespace-nowrap">
             <svg
@@ -146,69 +120,82 @@ export default function TalleresComunidadPage() {
         )}
       </div>
 
-      {/* Grid de Talleres */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {talleres.map((taller) => (
-          <div
-            key={taller.id}
-            className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full group hover:-translate-y-1"
-          >
-            {/* Cabecera del Taller (Color dinámico) */}
+      {/* Cargando o Grid de Talleres */}
+      {cargando ? (
+        <div className="text-center py-20">
+          <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500 font-medium animate-pulse">
+            Cargando próximos eventos...
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {talleres.map((taller) => (
             <div
-              className={`p-6 bg-linear-to-br ${taller.color} text-white relative`}
+              key={taller.id}
+              className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full group hover:-translate-y-1"
             >
-              <div className="flex justify-between items-start mb-4">
-                <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold border border-white/30">
-                  {taller.modalidad}
-                </span>
-                <span className="bg-white text-gray-900 px-3 py-1 rounded-full text-sm font-black shadow-sm">
-                  {taller.precio === 0
-                    ? "¡GRATIS!"
-                    : `$${taller.precio.toFixed(2)}`}
-                </span>
-              </div>
-              <h3 className="text-xl font-black leading-tight mb-1">
-                {taller.titulo}
-              </h3>
-              <p className="text-white/80 text-sm font-medium">
-                Imparte: {taller.instructor}
-              </p>
-
-              {/* Decoración geométrica */}
-              <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-white opacity-10 rounded-full blur-lg"></div>
-            </div>
-
-            {/* Cuerpo del Taller */}
-            <div className="p-6 flex-1 flex flex-col">
-              <div className="flex items-center gap-4 text-sm text-gray-600 font-medium mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                <div className="flex items-center gap-1">
-                  <span className="text-lg">📅</span> {taller.fecha}
+              {/* Cabecera del Taller (Color dinámico) */}
+              <div
+                className={`p-6 bg-linear-to-br ${taller.color} text-white relative`}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold border border-white/30">
+                    {taller.modalidad}
+                  </span>
+                  <span className="bg-white text-gray-900 px-3 py-1 rounded-full text-sm font-black shadow-sm">
+                    {taller.precio === 0 ? "¡GRATIS!" : `$${taller.precio}`}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-lg">⏰</span>{" "}
-                  {taller.hora.split(" - ")[0]}
+                <h3 className="text-xl font-black leading-tight mb-1">
+                  {taller.titulo}
+                </h3>
+                <p className="text-white/80 text-sm font-medium">
+                  Imparte: {taller.instructor}
+                </p>
+
+                {/* Decoración geométrica */}
+                <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-white opacity-10 rounded-full blur-lg"></div>
+              </div>
+
+              {/* Cuerpo del Taller */}
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="flex items-center gap-4 text-sm text-gray-600 font-medium mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <div className="flex items-center gap-1">
+                    <span className="text-lg">📅</span> {taller.fecha}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-lg">⏰</span>{" "}
+                    {taller.hora.split(" - ")[0]}
+                  </div>
+                </div>
+
+                <p className="text-gray-500 text-sm mb-6 flex-1">
+                  {taller.descripcion}
+                </p>
+
+                <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-md">
+                    ¡Solo {taller.cupos} cupos!
+                  </span>
+                  <button
+                    onClick={() => handleInscripcion(taller)}
+                    className="bg-gray-900 hover:bg-gray-800 text-white font-bold py-2 px-5 rounded-lg transition text-sm shadow-sm"
+                  >
+                    Inscribirme
+                  </button>
                 </div>
               </div>
-
-              <p className="text-gray-500 text-sm mb-6 flex-1">
-                {taller.descripcion}
-              </p>
-
-              <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-md">
-                  ¡Solo {taller.cupos} cupos!
-                </span>
-                <button
-                  onClick={() => handleInscripcion(taller)}
-                  className="bg-gray-900 hover:bg-gray-800 text-white font-bold py-2 px-5 rounded-lg transition text-sm shadow-sm"
-                >
-                  Inscribirme
-                </button>
-              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+
+          {talleres.length === 0 && (
+            <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-10 text-gray-400 font-medium">
+              Actualmente no hay talleres programados.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
