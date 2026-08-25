@@ -99,9 +99,12 @@ export default function TalleresComunidadPage() {
           </p>
         </div>
 
-        {/* Botón solo para Psicólogos */}
+        {/* Botón solo para Psicólogos (AHORA CONVERTIDO EN LINK) */}
         {!cargando && rolUsuario === "psicologo" && (
-          <button className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center gap-2 whitespace-nowrap">
+          <Link
+            href="/dashboard-psicologo/crear-taller"
+            className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center gap-2 whitespace-nowrap"
+          >
             <svg
               className="w-5 h-5"
               fill="none"
@@ -116,7 +119,7 @@ export default function TalleresComunidadPage() {
               ></path>
             </svg>
             Crear Nuevo Taller
-          </button>
+          </Link>
         )}
       </div>
 
