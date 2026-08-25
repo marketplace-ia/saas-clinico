@@ -44,11 +44,15 @@ export default function PacienteLayout({
       href: "/dashboard-paciente/pagos",
       icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
     },
+    {
+      name: "Ir a PsiEduca",
+      href: "/comunidad",
+      icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
+    },
   ];
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 font-sans overflow-hidden">
-      {/* 📱 CABECERA MÓVIL */}
       <div className="md:hidden bg-white border-b border-gray-200 p-4 flex justify-between items-center z-50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold shadow-sm">
@@ -85,13 +89,8 @@ export default function PacienteLayout({
         </button>
       </div>
 
-      {/* 💻 BARRA LATERAL */}
       <aside
-        className={`
-        ${menuAbierto ? "flex" : "hidden"} 
-        md:flex flex-col w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-gray-200 shrink-0
-        absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen top-18.25 md:top-0 shadow-xl md:shadow-none transition-all
-      `}
+        className={`${menuAbierto ? "flex" : "hidden"} md:flex flex-col w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-gray-200 shrink-0 absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen top-18.25 md:top-0 shadow-xl md:shadow-none transition-all`}
       >
         <div className="p-8 hidden md:block">
           <div className="flex items-center gap-3 mb-2">
@@ -110,6 +109,7 @@ export default function PacienteLayout({
         <nav className="flex-1 px-4 py-6 md:py-0 space-y-2 overflow-y-auto">
           {links.map((link) => {
             const isActive = pathname === link.href;
+            const isComunidad = link.href === "/comunidad";
             return (
               <Link
                 key={link.name}
@@ -118,11 +118,13 @@ export default function PacienteLayout({
                 className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-medium transition-all duration-200 ${
                   isActive
                     ? "bg-blue-50 text-blue-600 shadow-sm"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    : isComunidad
+                      ? "text-teal-600 hover:bg-teal-50 border border-transparent hover:border-teal-100"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
                 <svg
-                  className={`w-5 h-5 ${isActive ? "text-blue-500" : "text-gray-400"}`}
+                  className={`w-5 h-5 ${isActive ? "text-blue-500" : isComunidad ? "text-teal-500" : "text-gray-400"}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -163,7 +165,6 @@ export default function PacienteLayout({
         </div>
       </aside>
 
-      {/* 📄 CONTENIDO PRINCIPAL */}
       <main className="flex-1 w-full h-[calc(100vh-73px)] md:h-screen overflow-y-auto overflow-x-hidden relative">
         {children}
       </main>
