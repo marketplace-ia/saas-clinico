@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+import { useState } from "react";
 
 export default function PsicologoLayout({
   children,
@@ -10,106 +11,129 @@ export default function PsicologoLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   const handleCerrarSesion = async () => {
     await supabase.auth.signOut();
     window.location.href = "/login-personal";
   };
 
+  const links = [
+    {
+      name: "Mi Consultorio",
+      href: "/dashboard-psicologo",
+      icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+    },
+    {
+      name: "Agenda Clínica",
+      href: "/dashboard-psicologo/agenda",
+      icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    },
+    {
+      name: "Pacientes e Historias",
+      href: "/dashboard-psicologo/historias",
+      icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+    },
+  ];
+
   return (
-    <div className="flex h-screen bg-gray-50 font-sans">
-      {/* Barra Lateral Clínica */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <span className="bg-blue-600 text-white w-8 h-8 rounded-lg flex items-center justify-center text-lg shadow-sm">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 font-sans overflow-hidden">
+      {/* 📱 CABECERA MÓVIL (Solo visible en celulares) */}
+      <div className="md:hidden bg-white border-b border-gray-200 p-4 flex justify-between items-center z-50">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold shadow-sm">
+            Ψ
+          </div>
+          <span className="font-bold text-xl text-gray-900">PsiClinic</span>
+        </div>
+        <button
+          onClick={() => setMenuAbierto(!menuAbierto)}
+          className="text-gray-600 hover:text-blue-600 focus:outline-none p-1"
+        >
+          <svg
+            className="w-7 h-7"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            {menuAbierto ? (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            ) : (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      {/* 💻 BARRA LATERAL (Desktop normal, Móvil superpuesta) */}
+      <aside
+        className={`
+        ${menuAbierto ? "flex" : "hidden"} 
+        md:flex flex-col w-full md:w-72 bg-white border-b md:border-b-0 md:border-r border-gray-200 shrink-0
+        absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen top-18.25 md:top-0 shadow-xl md:shadow-none transition-all
+      `}
+      >
+        <div className="p-8 hidden md:block">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-sm">
               Ψ
+            </div>
+            <span className="font-bold text-2xl text-gray-900 tracking-tight">
+              PsiClinic
             </span>
-            PsiClinic
-          </h2>
-          <p className="text-xs text-gray-500 mt-1.5 font-bold uppercase tracking-wider">
+          </div>
+          <p className="text-xs font-black text-gray-400 uppercase tracking-wider ml-13">
             Portal Especialista
           </p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <Link
-            href="/dashboard-psicologo"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition ${
-              pathname === "/dashboard-psicologo"
-                ? "bg-blue-50 text-blue-700 shadow-sm border border-blue-100"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-              ></path>
-            </svg>
-            Mi Consultorio
-          </Link>
-
-          <Link
-            href="/dashboard-psicologo/agenda"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition ${
-              pathname.includes("/agenda")
-                ? "bg-blue-50 text-blue-700 shadow-sm border border-blue-100"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              ></path>
-            </svg>
-            Agenda Clínica
-          </Link>
-
-          <Link
-            href="/dashboard-psicologo/pacientes"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition ${
-              pathname.includes("/pacientes")
-                ? "bg-blue-50 text-blue-700 shadow-sm border border-blue-100"
-                : "text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              ></path>
-            </svg>
-            Pacientes e Historias
-          </Link>
+        <nav className="flex-1 px-4 py-6 md:py-0 space-y-2 overflow-y-auto">
+          {links.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.name}
+                href={link.href}
+                onClick={() => setMenuAbierto(false)}
+                className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-medium transition-all duration-200 ${
+                  isActive
+                    ? "bg-blue-50 text-blue-700 shadow-sm"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <svg
+                  className={`w-5 h-5 ${isActive ? "text-blue-600" : "text-gray-400"}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d={link.icon}
+                  ></path>
+                </svg>
+                {link.name}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="p-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="p-4 border-t border-gray-100 mt-auto bg-white">
           <button
             onClick={handleCerrarSesion}
-            className="w-full bg-white hover:bg-red-50 text-red-600 font-semibold py-3 px-4 rounded-xl transition border border-gray-200 hover:border-red-200 shadow-sm flex items-center justify-center gap-2"
+            className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-2xl transition font-medium"
           >
             <svg
               className="w-5 h-5"
@@ -129,8 +153,10 @@ export default function PsicologoLayout({
         </div>
       </aside>
 
-      {/* Contenido Principal */}
-      <main className="flex-1 overflow-y-auto bg-gray-50">{children}</main>
+      {/* 📄 CONTENIDO PRINCIPAL */}
+      <main className="flex-1 w-full h-[calc(100vh-73px)] md:h-screen overflow-y-auto overflow-x-hidden relative">
+        {children}
+      </main>
     </div>
   );
 }
