@@ -39,11 +39,13 @@ export default function RegistroSaaSPage() {
 
       if (error) throw error;
 
-      // 2. Le asignamos el rol de "psicologo" a este nuevo cliente
+      // 2. Usamos UPSERT: Si no existe lo crea, si existe lo actualiza sin dar error.
       if (data.user) {
         const { error: rolError } = await supabase
           .from("roles_usuarios")
-          .insert([{ correo: formData.email, rol: "psicologo" }]);
+          .upsert([{ correo: formData.email, rol: "psicologo" }], {
+            onConflict: "correo",
+          });
 
         if (rolError) throw rolError;
       }
@@ -53,7 +55,7 @@ export default function RegistroSaaSPage() {
         texto: "¡Cuenta creada con éxito! Configurando tu clínica...",
       });
 
-      // 3. Lo redirigimos al Dashboard CORRECTO (el del psicólogo)
+      // 3. Lo redirigimos al Dashboard del psicólogo
       setTimeout(() => {
         router.push("/dashboard-psicologo");
       }, 2000);
@@ -63,7 +65,6 @@ export default function RegistroSaaSPage() {
 
       let mensajeError = "Hubo un error al crear la cuenta.";
 
-      // Traducimos los errores comunes de Supabase al español
       if (error.message?.includes("already registered")) {
         mensajeError =
           "Este correo ya está registrado en el sistema. Intenta iniciar sesión.";
