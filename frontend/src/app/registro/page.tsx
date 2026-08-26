@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-// CORRECCIÓN 1: Tres puntos para la ruta correcta
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -55,12 +54,25 @@ export default function RegistroSaaSPage() {
       setTimeout(() => {
         router.push("/dashboard-psicologo");
       }, 2000);
-    } catch (error: unknown) {
-      console.error(error);
-      setMensaje({
-        tipo: "error",
-        texto: "Hubo un error al crear la cuenta. Intenta con otro correo.",
-      });
+    } catch (err: unknown) {
+      console.error(err);
+      const error = err as { message?: string };
+
+      let mensajeError = "Hubo un error al crear la cuenta.";
+
+      // Traducimos los errores comunes de Supabase
+      if (error.message?.includes("already registered")) {
+        mensajeError =
+          "Este correo ya está registrado en el sistema. Intenta iniciar sesión.";
+      } else if (error.message?.includes("Password")) {
+        mensajeError =
+          "La contraseña es muy débil (usa al menos 6 caracteres).";
+      } else {
+        // Si es otro error, lo mostramos en pantalla para saber qué pasa
+        mensajeError = `Error de Supabase: ${error.message}`;
+      }
+
+      setMensaje({ tipo: "error", texto: mensajeError });
     } finally {
       setCargando(false);
     }
@@ -212,7 +224,6 @@ export default function RegistroSaaSPage() {
       {/* LADO DERECHO: Beneficios (Oculto en móviles) */}
       <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-gray-900 to-blue-950 p-12 relative overflow-hidden flex-col justify-center items-center">
         {/* Decoración de fondo */}
-        {/* CORRECCIÓN 3: Formato limpio sugerido por Tailwind */}
         <div className="absolute top-0 right-0 w-full h-full opacity-10 bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-stops))] from-blue-400 via-transparent to-transparent"></div>
         <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
 
@@ -221,7 +232,6 @@ export default function RegistroSaaSPage() {
             Con la confianza de +500 clínicas
           </div>
 
-          {/* CORRECCIÓN 2: Uso de &quot; para las comillas */}
           <h2 className="text-4xl font-black mb-6 leading-tight">
             &quot;Desde que uso PsiClinic, reduje un 40% las cancelaciones y
             tengo todo mi consultorio en mi bolsillo.&quot;
