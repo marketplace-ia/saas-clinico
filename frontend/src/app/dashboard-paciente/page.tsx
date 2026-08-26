@@ -4,75 +4,54 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 import Link from "next/link";
 
-interface MiCita {
-  id: string;
-  fecha: string;
-  hora: string;
-  motivo: string;
-  estado: string;
-}
-
-export default function PacienteHomePage() {
-  const [nombre, setNombre] = useState("Paciente");
-  const [misCitas, setMisCitas] = useState<MiCita[]>([]);
+export default function DashboardPacientePage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [usuario, setUsuario] = useState<any>(null);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    const cargarDatos = async () => {
-      setCargando(true);
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (user && user.email) {
-          setNombre(user.email.split("@")[0]);
-
-          const { data, error } = await supabase
-            .from("citas")
-            .select("*")
-            .order("fecha", { ascending: false });
-
-          if (error) throw error;
-          setMisCitas(data || []);
-        }
-      } catch (error) {
-        console.error("Error al cargar el panel del paciente:", error);
-      } finally {
-        setCargando(false);
-      }
+    const obtenerUsuario = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUsuario(user);
+      setCargando(false);
     };
-
-    cargarDatos();
+    obtenerUsuario();
   }, []);
 
-  const citasPendientesOConfirmadas = misCitas.filter(
-    (c) => c.estado === "pendiente" || c.estado === "confirmada",
-  );
-  const citasPasadas = misCitas.filter(
-    (c) => c.estado === "completada" || c.estado === "cancelada",
-  );
+  if (cargando) {
+    return (
+      <div className="flex justify-center items-center h-full min-h-screen">
+        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full p-8 font-sans max-w-5xl mx-auto">
-      {/* Banner de Bienvenida */}
-      <div className="bg-linear-to-r from-blue-500 to-blue-700 rounded-3xl p-10 text-white shadow-lg mb-8 relative overflow-hidden flex flex-col md:flex-row items-center justify-between">
-        <div className="relative z-10">
-          <h1 className="text-4xl font-bold mb-3 flex items-center gap-3">
-            ¡Hola, {nombre}! <span className="text-3xl">👋</span>
+    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500">
+      {/* CABECERA */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 mb-1">
+            Hola, {usuario?.email?.split("@")[0] || "Paciente"} 👋
           </h1>
-          <p className="text-blue-100 text-lg max-w-xl">
-            Bienvenido a tu portal de salud mental. Aquí puedes gestionar tus
-            sesiones y hacer seguimiento a tu tratamiento.
+          <p className="text-gray-500">
+            Bienvenido a tu portal de salud mental.
           </p>
         </div>
-        <div className="relative z-10 mt-6 md:mt-0">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <button className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-center">
+            Configurar Perfil
+          </button>
+
+          {/* BOTÓN PARA UNIRSE A LA VIDEOLLAMADA */}
           <Link
-            href="/dashboard-paciente/agendar"
-            className="bg-white text-blue-600 hover:bg-blue-50 font-black py-4 px-8 rounded-2xl shadow-xl transition-transform hover:-translate-y-1 flex items-center gap-2"
+            href="/sala-virtual"
+            className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-md flex items-center justify-center gap-2 animate-pulse hover:animate-none"
           >
             <svg
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -81,22 +60,26 @@ export default function PacienteHomePage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth="2"
-                d="M12 4v16m8-8H4"
+                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
               ></path>
             </svg>
-            Agendar Nueva Cita
+            Entrar a mi Consulta
           </Link>
         </div>
-        {/* Decoración geométrica */}
-        <div className="absolute right-0 top-0 w-64 h-full bg-white opacity-10 transform -skew-x-12 translate-x-8"></div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Columna Izquierda: Citas Activas */}
-        <div className="lg:col-span-2 space-y-6">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+      {/* PRÓXIMA CITA DESTACADA */}
+      <div className="bg-linear-to-br from-blue-600 to-blue-800 rounded-3xl p-8 text-white shadow-lg mb-8 relative overflow-hidden">
+        <div className="relative z-10">
+          <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold border border-white/30 uppercase tracking-wider mb-4 inline-block">
+            Cita de Hoy
+          </span>
+          <h2 className="text-2xl font-black mb-2">
+            Terapia Individual (Seguimiento)
+          </h2>
+          <p className="text-blue-100 mb-6 flex items-center gap-2 font-medium">
             <svg
-              className="w-6 h-6 text-blue-500"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -105,137 +88,59 @@ export default function PacienteHomePage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth="2"
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               ></path>
             </svg>
-            Tus próximas sesiones
-          </h2>
-
-          {cargando ? (
-            <div className="bg-white rounded-3xl p-12 border border-gray-100 text-center text-gray-500 animate-pulse shadow-sm">
-              Cargando tu información...
-            </div>
-          ) : citasPendientesOConfirmadas.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 border border-gray-100 text-center shadow-sm">
-              <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">
-                🛋️
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">
-                No tienes citas próximas
-              </h3>
-              <p className="text-gray-500">
-                Cuando agendes una nueva sesión con tu especialista, aparecerá
-                aquí.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {citasPendientesOConfirmadas.map((cita) => (
-                <div
-                  key={cita.id}
-                  className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition hover:border-blue-200"
-                >
-                  <div className="flex items-start gap-4">
-                    {/* CORRECCIÓN APLICADA AQUÍ: min-w-20 en lugar de min-w-[80px] */}
-                    <div className="bg-blue-50 text-blue-600 p-4 rounded-2xl text-center min-w-20">
-                      <div className="text-xs font-bold uppercase">
-                        {cita.fecha.split("-")[1]}/{cita.fecha.split("-")[0]}
-                      </div>
-                      <div className="text-2xl font-black">
-                        {cita.fecha.split("-")[2]}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-800">
-                        {cita.motivo || "Sesión de Seguimiento"}
-                      </h3>
-                      <p className="text-gray-500 flex items-center gap-1 mt-1">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          ></path>
-                        </svg>
-                        {cita.hora}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-bold uppercase border ${
-                        cita.estado === "confirmada"
-                          ? "bg-green-50 text-green-700 border-green-200"
-                          : "bg-yellow-50 text-yellow-700 border-yellow-200"
-                      }`}
-                    >
-                      {cita.estado === "confirmada"
-                        ? "✓ Confirmada"
-                        : "⏳ En revisión"}
-                    </span>
-                    {cita.estado === "pendiente" && (
-                      <p className="text-xs text-gray-400 mt-2">
-                        La secretaría confirmará pronto.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            Hoy, 11:30 AM con tu Especialista
+          </p>
+          <p className="text-sm text-blue-50/80 max-w-lg leading-relaxed">
+            Tu especialista ya está preparándose para tu sesión. Puedes ingresar
+            a la sala virtual 5 minutos antes de la hora programada para probar
+            tu cámara y micrófono.
+          </p>
         </div>
+        {/* Decoración geométrica */}
+        <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-white opacity-10 rounded-full blur-2xl"></div>
+        <div className="absolute top-10 right-20 text-9xl opacity-5 select-none">
+          🧠
+        </div>
+      </div>
 
-        {/* Columna Derecha: Historial y Recursos */}
-        <div className="space-y-6">
-          <div className="bg-blue-50/50 rounded-3xl p-6 border border-blue-100">
-            <h3 className="text-lg font-bold text-blue-900 mb-2">
-              ¿Necesitas ayuda urgente?
-            </h3>
-            <p className="text-blue-700 text-sm mb-4">
-              Si estás atravesando una crisis, no esperes a tu cita. Contáctanos
-              inmediatamente.
-            </p>
-            <button className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-sm">
-              Línea de Emergencia
-            </button>
+      {/* ACCESOS RÁPIDOS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Link
+          href="/dashboard-paciente/historial"
+          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all flex items-center gap-5 group cursor-pointer"
+        >
+          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform origin-left">
+            📝
           </div>
-
-          <h2 className="text-xl font-bold text-gray-800 mt-8 mb-4">
-            Historial Pasado
-          </h2>
-          {citasPasadas.length === 0 ? (
-            <p className="text-gray-500 text-sm bg-white p-4 rounded-2xl border border-gray-100">
-              No hay registros de citas anteriores.
+          <div>
+            <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+              Mi Historial Clínico
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Revisa tus diagnósticos y notas anteriores.
             </p>
-          ) : (
-            <div className="space-y-3">
-              {citasPasadas.slice(0, 3).map((cita) => (
-                <div
-                  key={cita.id}
-                  className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm text-sm"
-                >
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-gray-700">
-                      {cita.fecha}
-                    </span>
-                    <span
-                      className={`text-xs font-bold ${cita.estado === "completada" ? "text-green-600" : "text-red-500"}`}
-                    >
-                      {cita.estado.toUpperCase()}
-                    </span>
-                  </div>
-                  <p className="text-gray-500 truncate">{cita.motivo}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/comunidad"
+          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-teal-300 transition-all flex items-center gap-5 group cursor-pointer"
+        >
+          <div className="w-14 h-14 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform origin-left">
+            🌿
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
+              PsiEduca
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Explora talleres y artículos para tu bienestar.
+            </p>
+          </div>
+        </Link>
       </div>
     </div>
   );
