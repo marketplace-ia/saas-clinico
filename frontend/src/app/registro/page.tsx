@@ -1,169 +1,257 @@
 "use client";
 
 import { useState } from "react";
+// CORRECCIÓN 1: Tres puntos para la ruta correcta
 import { supabase } from "../../../lib/supabase";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function RegistroPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [exito, setExito] = useState(false);
+export default function RegistroSaaSPage() {
+  const router = useRouter();
+
   const [cargando, setCargando] = useState(false);
+  const [mensaje, setMensaje] = useState({ tipo: "", texto: "" });
+
+  const [formData, setFormData] = useState({
+    nombre: "",
+    email: "",
+    password: "",
+    clinica: "",
+    plan: "profesional",
+  });
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
   const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setCargando(true);
+    setMensaje({ tipo: "", texto: "" });
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email,
-        password: password,
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
       });
 
-      if (signUpError) throw signUpError;
+      if (error) throw error;
 
       if (data.user) {
         const { error: rolError } = await supabase
           .from("roles_usuarios")
-          .insert([{ correo: email, rol: "paciente" }]);
+          .insert([{ correo: formData.email, rol: "psicologo" }]);
 
         if (rolError) throw rolError;
       }
 
-      setExito(true);
-      setEmail("");
-      setPassword("");
-    } catch (err) {
-      const errorObj = err as { message?: string };
-      const mensajeReal = errorObj.message || "Error desconocido";
+      setMensaje({
+        tipo: "exito",
+        texto: "¡Cuenta creada con éxito! Configurando tu clínica...",
+      });
 
-      // NUEVO: Ahora atrapamos también el error de "llave duplicada" de la base de datos
-      if (
-        mensajeReal.includes("User already registered") ||
-        mensajeReal.includes("already exists") ||
-        mensajeReal.includes("duplicate key value")
-      ) {
-        setError(
-          "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
-        );
-      } else {
-        setError(`Error del sistema: ${mensajeReal}`);
-      }
+      setTimeout(() => {
+        router.push("/dashboard-psicologo");
+      }, 2000);
+    } catch (error: unknown) {
+      console.error(error);
+      setMensaje({
+        tipo: "error",
+        texto: "Hubo un error al crear la cuenta. Intenta con otro correo.",
+      });
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans">
-      <div className="w-full max-w-md mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center text-gray-500 hover:text-blue-600 transition font-medium text-sm"
-        >
-          <svg
-            className="w-5 h-5 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    <div className="min-h-screen flex font-sans bg-white selection:bg-blue-200">
+      {/* LADO IZQUIERDO: Formulario */}
+      <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-12 xl:p-20 relative z-10 overflow-y-auto">
+        <div className="flex items-center gap-3 mb-12">
+          <Link
+            href="/"
+            className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold text-xl shadow-md cursor-pointer hover:scale-105 transition-transform"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            ></path>
-          </svg>
-          Volver a la página principal
-        </Link>
-      </div>
-
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Crear Cuenta
-          </h1>
-          <p className="text-gray-500 text-sm">
-            Regístrate para agendar tus citas clínicas
-          </p>
+            Ψ
+          </Link>
+          <span className="font-black text-2xl text-gray-900 tracking-tight">
+            PsiClinic<span className="text-blue-600">.</span>
+          </span>
         </div>
 
-        {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-6 text-center border border-red-100 font-medium">
-            {error}
-          </div>
-        )}
+        <div className="max-w-md w-full mx-auto flex-1 flex flex-col justify-center">
+          <h1 className="text-3xl font-black text-gray-900 mb-2">
+            Comienza tu prueba gratis
+          </h1>
+          <p className="text-gray-500 mb-8">
+            Únete a cientos de profesionales que ya automatizaron su clínica.
+            Sin tarjeta de crédito.
+          </p>
 
-        {exito ? (
-          <div className="text-center py-6">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              ✓
-            </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">
-              ¡Cuenta creada con éxito!
-            </h2>
-            <p className="text-gray-600 mb-6 text-sm">
-              Tu cuenta ha sido registrada correctamente. Ya puedes acceder a tu
-              portal.
-            </p>
-            <Link
-              href="/login"
-              className="block w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition shadow-sm"
+          {mensaje.texto && (
+            <div
+              className={`p-4 rounded-xl mb-6 font-bold text-sm ${mensaje.tipo === "exito" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}
             >
-              Ir a Iniciar Sesión
-            </Link>
-          </div>
-        ) : (
+              {mensaje.texto}
+            </div>
+          )}
+
           <form onSubmit={handleRegistro} className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Nombre Completo
+                </label>
+                <input
+                  required
+                  type="text"
+                  name="nombre"
+                  value={formData.nombre}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  placeholder="Dr. Juan Pérez"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm text-gray-700 mb-1 font-medium">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Nombre de tu Clínica / Consultorio
+              </label>
+              <input
+                required
+                type="text"
+                name="clinica"
+                value={formData.clinica}
+                onChange={handleChange}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                placeholder="Ej: Centro de Bienestar Mente Sana"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
                 Correo Electrónico
               </label>
               <input
-                type="email"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
-                placeholder="correo@ejemplo.com"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                placeholder="tucorreo@clinica.com"
               />
             </div>
+
             <div>
-              <label className="block text-sm text-gray-700 mb-1 font-medium">
-                Contraseña (Mín. 6 caracteres)
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Contraseña Segura
               </label>
               <input
-                type="password"
                 required
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
                 minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
-                placeholder="••••••••"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                placeholder="Mínimo 6 caracteres"
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Plan a Probar (14 días gratis)
+              </label>
+              <select
+                name="plan"
+                value={formData.plan}
+                onChange={handleChange}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-gray-700"
+              >
+                <option value="basico">Plan Básico ($29/mes)</option>
+                <option value="profesional">
+                  Plan Profesional ($59/mes) - Recomendado
+                </option>
+                <option value="clinica">Plan Clínica ($129/mes)</option>
+              </select>
+            </div>
+
             <button
               type="submit"
               disabled={cargando}
-              className={`w-full py-2.5 rounded-lg font-medium transition text-white ${cargando ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow"}`}
+              className={`w-full font-black py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 mt-4 ${cargando ? "bg-blue-400 text-white cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white hover:-translate-y-1 hover:shadow-blue-500/30"}`}
             >
-              {cargando ? "Creando cuenta..." : "Registrarme"}
+              {cargando ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>{" "}
+                  Creando cuenta...
+                </>
+              ) : (
+                "Crear Mi Cuenta Ahora"
+              )}
             </button>
           </form>
-        )}
 
-        {!exito && (
-          <div className="mt-6 text-center border-t border-gray-100 pt-6">
+          <p className="text-center text-sm text-gray-500 mt-8 font-medium">
+            ¿Ya tienes una cuenta?{" "}
             <Link
-              href="/login"
-              className="text-sm text-blue-600 hover:underline font-medium"
+              href="/login-personal"
+              className="text-blue-600 hover:underline font-bold"
             >
-              ¿Ya tienes cuenta? Inicia sesión aquí
+              Inicia Sesión aquí
             </Link>
+          </p>
+        </div>
+      </div>
+
+      {/* LADO DERECHO: Beneficios (Oculto en móviles) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-gray-900 to-blue-950 p-12 relative overflow-hidden flex-col justify-center items-center">
+        {/* Decoración de fondo */}
+        {/* CORRECCIÓN 3: Formato limpio sugerido por Tailwind */}
+        <div className="absolute top-0 right-0 w-full h-full opacity-10 bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-stops))] from-blue-400 via-transparent to-transparent"></div>
+        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+
+        <div className="relative z-10 max-w-lg text-white">
+          <div className="inline-block bg-white/10 backdrop-blur-md border border-white/20 text-blue-200 font-bold px-4 py-1.5 rounded-full text-xs uppercase tracking-wider mb-6">
+            Con la confianza de +500 clínicas
           </div>
-        )}
+
+          {/* CORRECCIÓN 2: Uso de &quot; para las comillas */}
+          <h2 className="text-4xl font-black mb-6 leading-tight">
+            &quot;Desde que uso PsiClinic, reduje un 40% las cancelaciones y
+            tengo todo mi consultorio en mi bolsillo.&quot;
+          </h2>
+
+          <div className="flex items-center gap-4 mt-8">
+            <div className="w-14 h-14 bg-gray-800 rounded-full flex items-center justify-center font-bold text-xl border-2 border-blue-500 shadow-lg">
+              👩‍⚕️
+            </div>
+            <div>
+              <p className="font-bold text-lg">Dra. Camila Rojas</p>
+              <p className="text-blue-300 text-sm">
+                Psicóloga Clínica Independiente
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6 mt-16 border-t border-white/10 pt-10">
+            <div>
+              <p className="text-3xl font-black text-white mb-1">100%</p>
+              <p className="text-sm text-blue-200">
+                Historias Clínicas Seguras
+              </p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-white mb-1">0%</p>
+              <p className="text-sm text-blue-200">Comisiones ocultas</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
