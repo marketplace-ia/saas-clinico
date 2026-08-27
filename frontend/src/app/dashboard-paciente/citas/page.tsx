@@ -1,129 +1,68 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../../../../lib/supabase";
+import Link from "next/link";
 
-// Inicializamos Supabase de la forma más directa con la librería principal
-// Asegúrate de que en tu archivo .env.local tus variables se llamen exactamente así
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Definimos la estructura exacta de nuestra base de datos
 interface Cita {
-  id?: string;
-  motivo: string;
+  id: string;
+  psicologo: string;
   fecha: string;
   hora: string;
-  notas: string;
-  estado?: string;
+  motivo: string;
+  estado: string;
 }
 
-export default function CitasPaciente() {
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [cargando, setCargando] = useState(false);
-  const [cargandoCitas, setCargandoCitas] = useState(true);
-
+export default function MisCitasPacientePage() {
   const [citas, setCitas] = useState<Cita[]>([]);
-  const [formulario, setFormulario] = useState<Cita>({
-    motivo: "",
-    fecha: "",
-    hora: "",
-    notas: "",
-  });
+  const [cargando, setCargando] = useState(true);
 
-  // Efecto para cargar las citas desde Supabase apenas abre la página
   useEffect(() => {
-    const obtenerCitas = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const obtenerMisCitas = async () => {
+      try {
+        // 1. Saber quién está logueado
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user?.email) return;
 
-      if (user) {
+        // 2. Traer SOLO las citas de este paciente, ordenadas de la más próxima a la más lejana
         const { data, error } = await supabase
           .from("citas")
           .select("*")
-          .eq("paciente_id", user.id)
-          .order("fecha", { ascending: true }); // Ordena por fecha
+          .eq("paciente_correo", user.email)
+          .order("fecha", { ascending: true });
 
-        if (error) {
-          console.error("Error al cargar las citas:", error.message);
-        } else if (data) {
-          setCitas(data);
-        }
+        if (error) throw error;
+        if (data) setCitas(data);
+      } catch (error) {
+        console.error("Error al cargar mis citas:", error);
+      } finally {
+        setCargando(false);
       }
-      setCargandoCitas(false);
     };
 
-    obtenerCitas();
+    obtenerMisCitas();
   }, []);
 
-  // Manejar lo que escribe el usuario
-  const manejarCambio = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
-  ) => {
-    setFormulario({ ...formulario, [e.target.name]: e.target.value });
-  };
-
-  // Guardar la cita REAL en la base de datos
-  const guardarCita = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setCargando(true);
-
-    // 1. Verificamos quién es el paciente logueado
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert("Debes iniciar sesión para agendar una cita.");
-      setCargando(false);
-      return;
-    }
-
-    // 2. Preparamos el paquete de datos
-    const nuevaCita = {
-      paciente_id: user.id,
-      motivo: formulario.motivo,
-      fecha: formulario.fecha,
-      hora: formulario.hora,
-      notas: formulario.notas,
-    };
-
-    // 3. Lo enviamos a Supabase
-    const { data, error } = await supabase
-      .from("citas")
-      .insert([nuevaCita])
-      .select();
-
-    if (error) {
-      alert("Hubo un error al guardar: " + error.message);
-      console.error(error);
-    } else if (data) {
-      // 4. Si hay éxito, actualizamos la pantalla con la cita real de la base de datos
-      setCitas([...citas, data[0]]);
-      setMostrarFormulario(false);
-      setFormulario({ motivo: "", fecha: "", hora: "", notas: "" });
-    }
-
-    setCargando(false);
+  // Función para determinar si una cita es "hoy" (para habilitar el botón de videollamada)
+  const esCitaHoy = (fechaCita: string) => {
+    const hoy = new Date().toISOString().split("T")[0];
+    return fechaCita === hoy;
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto relative h-full">
-      {/* Encabezado */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-5xl mx-auto">
+      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Mis Citas</h1>
-          <p className="text-slate-500 mt-1">
-            Gestiona tus próximas sesiones y tu historial de consultas.
+          <h1 className="text-3xl font-black text-gray-900 mb-2">Mis Citas</h1>
+          <p className="text-gray-500">
+            Administra tus reservas y accede a tus sesiones virtuales.
           </p>
         </div>
-        <button
-          onClick={() => setMostrarFormulario(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
+        <Link
+          href="/dashboard-paciente/agendar"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center justify-center gap-2"
         >
           <svg
             className="w-5 h-5"
@@ -139,212 +78,142 @@ export default function CitasPaciente() {
             ></path>
           </svg>
           Agendar Nueva Cita
-        </button>
+        </Link>
       </div>
 
-      {/* Pantalla de Carga Inicial */}
-      {cargandoCitas ? (
-        <div className="flex justify-center items-center py-20">
-          <span className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></span>
-        </div>
-      ) : citas.length === 0 ? (
-        /* Si NO hay citas, mostramos el mensaje de vacío */
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center animate-in fade-in duration-500">
-          <div className="flex justify-center mb-4">
-            <div className="bg-emerald-50 p-4 rounded-full">
-              <svg
-                className="w-12 h-12 text-emerald-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                ></path>
-              </svg>
-            </div>
-          </div>
-          <h3 className="text-xl font-semibold text-slate-900 mb-2">
-            Aún no tienes citas programadas
-          </h3>
-          <p className="text-slate-500 max-w-md mx-auto mb-6">
-            Parece que tu agenda está libre. Cuando programes una sesión con uno
-            de nuestros especialistas, aparecerá aquí.
+      {cargando ? (
+        <div className="text-center py-20">
+          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500 font-bold">
+            Cargando tu historial de citas...
           </p>
         </div>
-      ) : (
-        /* Si SÍ hay citas, mostramos las tarjetas */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {citas.map((cita) => (
-            <div
-              key={cita.id}
-              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
-                  {cita.estado || "Confirmada"}
-                </div>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 capitalize mb-1">
-                {cita.motivo.replace("_", " ")}
-              </h3>
-              <div className="text-slate-500 text-sm flex flex-col gap-2 mt-4">
-                <div className="flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    ></path>
-                  </svg>
-                  {cita.fecha}
-                </div>
-                <div className="flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    ></path>
-                  </svg>
-                  {cita.hora}
-                </div>
-              </div>
-            </div>
-          ))}
+      ) : citas.length === 0 ? (
+        <div className="bg-white border border-dashed border-gray-300 rounded-3xl p-16 text-center shadow-sm">
+          <div className="text-6xl mb-4">📅</div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">
+            Aún no tienes citas
+          </h2>
+          <p className="text-gray-500 mb-8 max-w-md mx-auto">
+            Parece que todavía no has programado ninguna sesión con nuestros
+            especialistas. ¡Da el primer paso hacia tu bienestar hoy mismo!
+          </p>
+          <Link
+            href="/dashboard-paciente/agendar"
+            className="inline-block bg-blue-50 text-blue-600 font-bold py-3 px-8 rounded-xl transition hover:bg-blue-100"
+          >
+            Explorar Especialistas
+          </Link>
         </div>
-      )}
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {citas.map((cita) => {
+            const esHoy = esCitaHoy(cita.fecha);
 
-      {/* Modal del Formulario para Agendar */}
-      {mostrarFormulario && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">
-                Agendar Nueva Sesión
-              </h2>
-              <button
-                onClick={() => setMostrarFormulario(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-200"
+            return (
+              <div
+                key={cita.id}
+                className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                {/* Banner superior de la tarjeta */}
+                <div
+                  className={`p-4 flex justify-between items-center ${esHoy ? "bg-emerald-500" : "bg-gray-50 border-b border-gray-100"}`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  ></path>
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={guardarCita} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Especialidad / Motivo
-                </label>
-                <select
-                  name="motivo"
-                  required
-                  value={formulario.motivo}
-                  onChange={manejarCambio}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white text-slate-700"
-                >
-                  <option value="">Selecciona un motivo...</option>
-                  <option value="terapia_individual">Terapia Individual</option>
-                  <option value="terapia_pareja">Terapia de Pareja</option>
-                  <option value="orientacion">Orientación Vocacional</option>
-                  <option value="ansiedad_estres">
-                    Manejo de Ansiedad/Estrés
-                  </option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    name="fecha"
-                    required
-                    value={formulario.fecha}
-                    onChange={manejarCambio}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-700"
-                  />
+                  <span
+                    className={`text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${esHoy ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"}`}
+                  >
+                    {esHoy ? "SESIÓN HOY" : "PROGRAMADA"}
+                  </span>
+                  <span
+                    className={`font-black ${esHoy ? "text-white" : "text-gray-900"}`}
+                  >
+                    {cita.fecha}
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Hora
-                  </label>
-                  <input
-                    type="time"
-                    name="hora"
-                    required
-                    value={formulario.hora}
-                    onChange={manejarCambio}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-700"
-                  />
+
+                {/* Contenido de la cita */}
+                <div className="p-6 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-1">
+                      {cita.psicologo}
+                    </h3>
+                    <p className="text-blue-600 font-black text-lg mb-4 flex items-center gap-2">
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        ></path>
+                      </svg>
+                      {cita.hora}
+                    </p>
+
+                    {cita.motivo && (
+                      <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                          Motivo de consulta
+                        </p>
+                        <p className="text-gray-700 text-sm italic">
+                          &quot;{cita.motivo}&quot;
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Botón de acción */}
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    {esHoy ? (
+                      <Link
+                        href="/sala-virtual"
+                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-md flex justify-center items-center gap-2 animate-pulse"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          ></path>
+                        </svg>
+                        Entrar a la Videollamada
+                      </Link>
+                    ) : (
+                      <button
+                        disabled
+                        className="w-full bg-gray-100 text-gray-400 font-bold py-3 rounded-xl cursor-not-allowed flex justify-center items-center gap-2"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                          ></path>
+                        </svg>
+                        Sala disponible el día de la cita
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Notas adicionales (Opcional)
-                </label>
-                <textarea
-                  name="notas"
-                  value={formulario.notas}
-                  onChange={manejarCambio}
-                  rows={3}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all resize-none placeholder:text-slate-400 text-slate-700"
-                  placeholder="¿Hay algo que debamos saber antes de la sesión?"
-                ></textarea>
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMostrarFormulario(false)}
-                  className="flex-1 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium hover:bg-slate-50 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={cargando}
-                  className="flex-1 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-medium hover:bg-emerald-700 transition-colors disabled:bg-emerald-400 flex justify-center items-center"
-                >
-                  {cargando ? (
-                    <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  ) : (
-                    "Confirmar Cita"
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
+            );
+          })}
         </div>
       )}
     </div>
