@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-// CORRECCIÓN 1: Un "../" extra porque estamos en una carpeta más profunda
 import { supabase } from "../../../../lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -52,8 +51,18 @@ export default function AgendarCitaPage() {
     setCargando(true);
     setMensaje({ tipo: "", texto: "" });
 
+    // Validación de seguridad extra: Asegurarnos de que hay un paciente logueado
+    if (!correoPaciente) {
+      setMensaje({
+        tipo: "error",
+        texto:
+          "Error: No hemos detectado tu sesión de paciente. Intenta recargar la página.",
+      });
+      setCargando(false);
+      return;
+    }
+
     try {
-      // Guardar en la base de datos real
       const { error } = await supabase.from("citas").insert([
         {
           paciente_correo: correoPaciente,
@@ -72,17 +81,16 @@ export default function AgendarCitaPage() {
         texto: "¡Cita confirmada exitosamente! Preparando tu sala...",
       });
 
-      // Redirigir al inicio del paciente tras 2 segundos
       setTimeout(() => {
         router.push("/dashboard-paciente");
       }, 2000);
-
-      // CORRECCIÓN 2: Cambiamos 'any' por 'unknown'
     } catch (err: unknown) {
       console.error(err);
+      const error = err as { message?: string };
+      // AQUÍ ESTÁ LA MAGIA: Ahora veremos el error real de Supabase
       setMensaje({
         tipo: "error",
-        texto: "Hubo un error al agendar la cita. Inténtalo de nuevo.",
+        texto: `Error de Base de Datos: ${error.message || "Desconocido"}`,
       });
     } finally {
       setCargando(false);
@@ -205,7 +213,6 @@ export default function AgendarCitaPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Calendario nativo */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Día de la cita
@@ -214,12 +221,11 @@ export default function AgendarCitaPage() {
                 type="date"
                 value={cita.fecha}
                 onChange={(e) => setCita({ ...cita, fecha: e.target.value })}
-                min={new Date().toISOString().split("T")[0]} // No permite fechas pasadas
+                min={new Date().toISOString().split("T")[0]}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700"
               />
             </div>
 
-            {/* Horas */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Horas Disponibles
@@ -260,7 +266,6 @@ export default function AgendarCitaPage() {
           onSubmit={handleConfirmarCita}
           className="bg-gray-900 border border-gray-800 rounded-3xl p-8 shadow-2xl text-white animate-in slide-in-from-right-4 relative overflow-hidden"
         >
-          {/* Decoración */}
           <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-500 opacity-20 rounded-full blur-3xl"></div>
 
           <h2 className="text-2xl font-black mb-6 relative z-10">
@@ -296,7 +301,6 @@ export default function AgendarCitaPage() {
             >
               Modificar
             </button>
-            {/* CORRECCIÓN 3: Ajustamos la clase de flexbox */}
             <button
               type="submit"
               disabled={cargando}
