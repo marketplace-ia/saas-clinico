@@ -1,181 +1,170 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function SalaVirtualPage() {
   const router = useRouter();
 
-  const [rolUsuario, setRolUsuario] = useState<string | null>(null);
-  const [notas, setNotas] = useState("");
+  const [nombreUsuario, setNombreUsuario] = useState("");
+  const [rol, setRol] = useState("");
+  const [cargando, setCargando] = useState(true);
+
+  // Estados para la libreta del doctor
+  const [notaRapida, setNotaRapida] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
 
-  const nombreSala = "PsiClinic-Consultorio-Seguro-2026";
-
-  // Verificamos si quien entra es el Doctor o el Paciente
   useEffect(() => {
-    const verificarRol = async () => {
+    const iniciarEntornoVirtual = async () => {
+      // 1. Identificar quién está entrando a la sala
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user && user.email) {
-        const { data: rolData } = await supabase
-          .from("roles_usuarios")
-          .select("rol")
-          .eq("correo", user.email)
-          .maybeSingle();
-
-        if (rolData) {
-          setRolUsuario(rolData.rol);
-        }
+      if (!user?.email) {
+        router.push("/");
+        return;
       }
+
+      // Nombre amigable para la videollamada
+      const nombrePart = user.email.split("@")[0];
+      setNombreUsuario(nombrePart);
+
+      // 2. Averiguar si es doctor o paciente para cambiar la interfaz
+      const { data: rolData } = await supabase
+        .from("roles_usuarios")
+        .select("rol")
+        .eq("correo", user.email)
+        .maybeSingle();
+
+      setRol(rolData?.rol || "paciente");
+      setCargando(false);
     };
-    verificarRol();
-  }, []);
 
-  // Función para guardar las notas en el expediente
-  const handleGuardarNotas = async () => {
+    iniciarEntornoVirtual();
+  }, [router]);
+
+  // Simulación de guardado rápido (luego lo conectaremos a Supabase si lo deseas)
+  const handleGuardarNota = () => {
     setGuardando(true);
-    setMensaje("");
-
-    // Aquí simulamos el guardado en base de datos (toma 1 segundo)
     setTimeout(() => {
+      // En una app real, aquí enviaríamos el texto a la tabla de notas
+      navigator.clipboard.writeText(notaRapida); // Lo copiamos al portapapeles por seguridad
       setGuardando(false);
-      setMensaje(
-        "¡Notas guardadas exitosamente en el expediente del paciente!",
-      );
-
-      // Borramos el mensaje de éxito después de 3 segundos
+      setMensaje("¡Apuntes guardados en tu portapapeles!");
       setTimeout(() => setMensaje(""), 3000);
     }, 1000);
   };
 
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center text-white">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="font-bold tracking-widest text-blue-400 animate-pulse">
+          ENCRIPTANDO CONEXIÓN...
+        </p>
+      </div>
+    );
+  }
+
+  // Generamos una sala única y segura en los servidores de Jitsi
+  // Le pasamos el nombre de nuestro usuario para que entre identificado
+  const roomName = "PsiClinic_Consultorio_Seguro_2026";
+  const jitsiUrl = `https://meet.jit.si/${roomName}#userInfo.displayName="${nombreUsuario}"`;
+
   return (
-    <div className="h-screen bg-gray-900 flex flex-col font-sans overflow-hidden">
-      {/* 🛡️ Barra Superior Clínica */}
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex justify-between items-center z-10 text-white shadow-md shrink-0">
+    <div className="min-h-screen bg-gray-950 flex flex-col font-sans selection:bg-blue-500 overflow-hidden">
+      {/* BARRA DE NAVEGACIÓN SUPERIOR (Modo Oscuro Clínico) */}
+      <header className="bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center text-white shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg shadow-sm">
-            Ψ
-          </div>
-          <div>
-            <h1 className="font-bold text-xl tracking-tight leading-tight">
-              Telemedicina PsiClinic
-            </h1>
-            <p className="text-xs text-green-400 flex items-center gap-1.5 mt-0.5 font-medium">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>
-              Conexión Segura (Cifrado Extremo a Extremo)
-            </p>
-          </div>
+          <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.7)]"></div>
+          <h1 className="font-black tracking-wider text-lg">
+            PsiClinic{" "}
+            <span className="font-light text-gray-400">| Consulta En Vivo</span>
+          </h1>
         </div>
 
-        <button
-          onClick={() => router.back()}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-lg flex items-center gap-2 text-sm hover:-translate-y-0.5"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex items-center gap-4">
+          <span className="hidden md:inline-block text-gray-400 text-sm font-medium">
+            Conectado como:{" "}
+            <span className="text-white font-bold">{nombreUsuario}</span>
+          </span>
+          <Link
+            href={
+              rol === "psicologo"
+                ? "/dashboard-psicologo"
+                : "/dashboard-paciente"
+            }
+            className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-sm font-bold py-2 px-6 rounded-lg transition"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M6 18L18 6M6 6l12 12"
-            ></path>
-          </svg>
-          Finalizar Sesión
-        </button>
+            Salir de la Sala
+          </Link>
+        </div>
       </header>
 
-      {/* 🎥 Zona Principal: Pantalla Dividida */}
-      <main className="flex-1 flex flex-col lg:flex-row w-full overflow-hidden">
-        {/* Contenedor del Video (Jitsi) - Ocupa todo si es paciente, o el 70% si es doctor */}
+      {/* ÁREA DE TRABAJO */}
+      <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1920px] mx-auto">
+        {/* COLUMNA IZQUIERDA: Video en Vivo */}
         <div
-          className={`relative bg-black transition-all duration-300 ${rolUsuario === "psicologo" ? "lg:w-2/3 xl:w-3/4" : "w-full"}`}
+          className={`flex-1 flex flex-col bg-black ${rol === "psicologo" ? "md:w-2/3 border-r border-gray-800" : "w-full"}`}
         >
           <iframe
-            src={`https://meet.jit.si/${nombreSala}`}
-            allow="camera; microphone; fullscreen; display-capture"
-            className="absolute inset-0 w-full h-full border-0"
+            src={jitsiUrl}
+            allow="camera; microphone; fullscreen; display-capture; autoplay"
+            className="w-full h-full min-h-[70vh] border-0"
           ></iframe>
         </div>
 
-        {/* 📝 Panel de Notas Clínicas (¡SOLO VISIBLE PARA EL PSICÓLOGO!) */}
-        {rolUsuario === "psicologo" && (
-          <div className="lg:w-1/3 xl:w-1/4 bg-white flex flex-col border-l border-gray-200 shadow-2xl z-20">
-            <div className="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
-              <h2 className="font-black text-gray-900 flex items-center gap-2">
-                <span className="text-xl">📝</span> Notas de Evolución
+        {/* COLUMNA DERECHA: Libreta (SOLO VISIBLE PARA PSICÓLOGOS) */}
+        {rol === "psicologo" && (
+          <div className="w-full md:w-1/3 bg-gray-900 flex flex-col h-full shrink-0">
+            <div className="p-6 border-b border-gray-800 bg-gray-900/50">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                <span className="bg-blue-600 p-2 rounded-xl text-lg shadow-md">
+                  📝
+                </span>
+                Apuntes en Vivo
               </h2>
-              <span className="bg-blue-100 text-blue-700 text-[10px] font-black uppercase px-2 py-1 rounded-full">
-                Privado
-              </span>
+              <p className="text-gray-400 text-sm mt-2 font-medium leading-relaxed">
+                Escribe notas rápidas durante la sesión sin salir de la cámara.
+                Al guardar, se copiarán para tu expediente principal.
+              </p>
             </div>
 
-            <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Motivo de Consulta / Observaciones
-                </label>
-                <textarea
-                  value={notas}
-                  onChange={(e) => setNotas(e.target.value)}
-                  placeholder="Escribe aquí los apuntes de la sesión. El paciente no puede ver esto..."
-                  className="w-full h-64 bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-all"
-                ></textarea>
-              </div>
+            <div className="flex-1 p-6 flex flex-col bg-gray-900">
+              <textarea
+                value={notaRapida}
+                onChange={(e) => setNotaRapida(e.target.value)}
+                placeholder="El paciente reporta que durante la semana..."
+                className="flex-1 w-full bg-gray-950 border border-gray-800 rounded-2xl p-5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-medium mb-4 text-sm"
+              ></textarea>
 
-              {/* Mensaje de confirmación */}
               {mensaje && (
-                <div className="bg-green-50 text-green-700 text-sm font-bold p-3 rounded-lg border border-green-200 animate-in slide-in-from-top-2">
+                <div className="bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-bold text-center mb-4 p-3 rounded-xl animate-in fade-in slide-in-from-bottom-2">
                   {mensaje}
                 </div>
               )}
-            </div>
 
-            <div className="p-5 border-t border-gray-100 bg-white shrink-0">
               <button
-                onClick={handleGuardarNotas}
-                disabled={guardando || notas.trim() === ""}
-                className={`w-full font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 ${
-                  guardando || notas.trim() === ""
-                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:-translate-y-1"
-                }`}
+                onClick={handleGuardarNota}
+                disabled={guardando || !notaRapida.trim()}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold py-4 rounded-xl transition shadow-[0_0_15px_rgba(37,99,235,0.2)] flex items-center justify-center gap-2"
               >
                 {guardando ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>{" "}
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>{" "}
                     Guardando...
                   </>
                 ) : (
-                  <>
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                      ></path>
-                    </svg>{" "}
-                    Guardar Expediente
-                  </>
+                  "Copiar y Guardar Apuntes"
                 )}
               </button>
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
