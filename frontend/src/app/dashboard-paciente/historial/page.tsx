@@ -1,66 +1,61 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../../../lib/supabase";
-import Link from "next/link";
 
-interface Cita {
+interface Nota {
   id: string;
+  psicologo: string;
   fecha: string;
-  hora: string;
-  motivo: string;
-  estado: string;
+  contenido: string;
 }
 
 export default function HistorialPacientePage() {
-  const [citas, setCitas] = useState<Cita[]>([]);
+  const [notas, setNotas] = useState<Nota[]>([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    const cargarHistorial = async () => {
-      setCargando(true);
+    const obtenerHistorial = async () => {
       try {
         // 1. Identificamos al paciente logueado
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user?.email) return;
 
-        // 2. Buscamos SOLO las citas que le pertenecen a este paciente
+        // 2. Traemos SOLO las notas clínicas que le pertenecen a este correo
         const { data, error } = await supabase
-          .from("citas")
+          .from("notas_clinicas")
           .select("*")
-          .eq("paciente_id", user.id)
-          .order("fecha", { ascending: false }) // Mostramos las más recientes primero
-          .order("hora", { ascending: false });
+          .eq("paciente_correo", user.email)
+          .order("created_at", { ascending: false }); // Las más recientes primero
 
         if (error) throw error;
-        setCitas(data || []);
+        if (data) setNotas(data);
       } catch (error) {
-        console.error("Error al cargar el historial de citas:", error);
+        console.error("Error al cargar el historial:", error);
       } finally {
         setCargando(false);
       }
     };
 
-    cargarHistorial();
+    obtenerHistorial();
   }, []);
 
   return (
-    <div className="w-full p-6 font-sans">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-4xl mx-auto">
+      {/* Cabecera */}
+      <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">
-            Mi Historial de Citas
+          <h1 className="text-3xl font-black text-gray-900 mb-2">
+            Mi Historial Clínico
           </h1>
-          <p className="text-gray-500 mt-1">
-            Revisa el estado de todas tus solicitudes y consultas pasadas.
+          <p className="text-gray-500">
+            Revisa la evolución de tu tratamiento y las notas de tu
+            especialista.
           </p>
         </div>
-        <Link
-          href="/citas"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition shadow-md flex items-center gap-2 hover:-translate-y-0.5"
-        >
+        <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl font-bold text-sm border border-blue-100 flex items-center gap-2">
           <svg
             className="w-5 h-5"
             fill="none"
@@ -71,115 +66,74 @@ export default function HistorialPacientePage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth="2"
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
             ></path>
           </svg>
-          Agendar Nueva Cita
-        </Link>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-700">
-            Registro de Consultas
-          </h2>
-          <span className="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-1 rounded-full">
-            Total: {citas.length}
-          </span>
+          Datos Encriptados
         </div>
-
-        {cargando ? (
-          <div className="p-12 text-center text-gray-500 animate-pulse flex flex-col items-center">
-            <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-            Cargando tu historial...
-          </div>
-        ) : citas.length === 0 ? (
-          <div className="p-16 text-center text-gray-500 bg-gray-50/50">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100 text-4xl">
-              📅
-            </div>
-            <p className="font-medium text-gray-600 text-lg">
-              Aún no tienes citas registradas.
-            </p>
-            <p className="text-sm mt-1 mb-6">
-              Cuando agendes una consulta, aparecerá aquí.
-            </p>
-            <Link
-              href="/citas"
-              className="text-blue-600 font-semibold hover:underline"
-            >
-              Ir a agendar mi primera cita →
-            </Link>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-white text-gray-500 text-sm border-b border-gray-100">
-                  <th className="p-5 font-semibold">Fecha y Hora</th>
-                  <th className="p-5 font-semibold">Motivo de Consulta</th>
-                  <th className="p-5 font-semibold text-right">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {citas.map((cita) => (
-                  <tr
-                    key={cita.id}
-                    className="hover:bg-gray-50/50 transition group"
-                  >
-                    <td className="p-5">
-                      <div className="font-bold text-gray-800 text-lg">
-                        {cita.fecha}
-                      </div>
-                      <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          ></path>
-                        </svg>
-                        {cita.hora}
-                      </div>
-                    </td>
-                    <td className="p-5 text-gray-600 max-w-sm">
-                      {cita.motivo}
-                    </td>
-                    <td className="p-5 text-right">
-                      <span
-                        className={`inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase shadow-sm border ${
-                          cita.estado === "pendiente"
-                            ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                            : cita.estado === "confirmada"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : "bg-red-50 text-red-700 border-red-200"
-                        }`}
-                      >
-                        {cita.estado === "pendiente" && (
-                          <span className="mr-1.5 text-lg leading-none">•</span>
-                        )}
-                        {cita.estado === "confirmada" && (
-                          <span className="mr-1.5 text-lg leading-none">✓</span>
-                        )}
-                        {cita.estado === "cancelada" && (
-                          <span className="mr-1.5 text-lg leading-none">×</span>
-                        )}
-                        {cita.estado}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+
+      {/* Contenido del Historial */}
+      {cargando ? (
+        <div className="text-center py-20">
+          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500 font-bold">
+            Descifrando tu expediente médico...
+          </p>
+        </div>
+      ) : notas.length === 0 ? (
+        <div className="bg-white border border-dashed border-gray-300 rounded-4xl p-16 text-center shadow-sm">
+          <div className="text-6xl mb-4">🗂️</div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">
+            Expediente en blanco
+          </h2>
+          <p className="text-gray-500 mb-8 max-w-md mx-auto">
+            Aún no hay notas clínicas registradas en tu historial. Estas
+            aparecerán aquí después de tu primera sesión con el especialista.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-100 rounded-4xl p-8 shadow-sm">
+          <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-linear-to-b before:from-transparent before:via-blue-200 before:to-transparent">
+            {notas.map((nota) => (
+              <div
+                key={nota.id}
+                className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
+              >
+                <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    ></path>
+                  </svg>
+                </div>
+
+                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-gray-50 p-6 rounded-2xl border border-gray-100 shadow-xs hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-bold text-gray-900">
+                      {nota.psicologo}
+                    </span>
+                    <span className="text-xs font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                      {nota.fecha}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">
+                    {nota.contenido}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
