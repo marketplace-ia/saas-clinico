@@ -1,54 +1,49 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabase";
 import Link from "next/link";
+import { supabase } from "../../../lib/supabase";
 
 export default function DashboardPacientePage() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [usuario, setUsuario] = useState<any>(null);
-  const [cargando, setCargando] = useState(true);
+  const [nombrePaciente, setNombrePaciente] = useState("Paciente");
 
   useEffect(() => {
     const obtenerUsuario = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      setUsuario(user);
-      setCargando(false);
+      if (user && user.email) {
+        const nombrePart = user.email.split("@")[0];
+        setNombrePaciente(nombrePart);
+      }
     };
     obtenerUsuario();
   }, []);
 
-  if (cargando) {
-    return (
-      <div className="flex justify-center items-center h-full min-h-screen">
-        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500">
-      {/* CABECERA */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-8">
+    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 mb-1">
-            Hola, {usuario?.email?.split("@")[0] || "Paciente"} 👋
+          <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">
+            Hola, <span className="text-blue-600">{nombrePaciente}</span> 👋
           </h1>
-          <p className="text-gray-500">
+          <p className="text-gray-500 mt-1 font-medium">
             Bienvenido a tu portal de salud mental.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <button className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-center">
-            Configurar Perfil
-          </button>
 
-          {/* BOTÓN PARA UNIRSE A LA VIDEOLLAMADA */}
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          {/* AQUÍ ESTÁ LA MAGIA: El botón ahora es un Link activo */}
+          <Link
+            href="/dashboard-paciente/perfil"
+            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold py-2.5 px-5 rounded-xl transition shadow-sm"
+          >
+            Configurar Perfil
+          </Link>
           <Link
             href="/sala-virtual"
-            className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-md flex items-center justify-center gap-2 animate-pulse hover:animate-none"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-md flex items-center gap-2"
           >
             <svg
               className="w-5 h-5"
@@ -68,16 +63,21 @@ export default function DashboardPacientePage() {
         </div>
       </div>
 
-      {/* PRÓXIMA CITA DESTACADA */}
-      <div className="bg-linear-to-br from-blue-600 to-blue-800 rounded-3xl p-8 text-white shadow-lg mb-8 relative overflow-hidden">
+      {/* Main Card */}
+      <div className="bg-blue-600 rounded-3xl p-8 md:p-10 text-white shadow-xl relative overflow-hidden mb-8">
+        <div className="absolute right-0 top-0 opacity-10 transform translate-x-1/4 -translate-y-1/4">
+          <svg className="w-64 h-64" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
+          </svg>
+        </div>
         <div className="relative z-10">
-          <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold border border-white/30 uppercase tracking-wider mb-4 inline-block">
-            Cita de Hoy
+          <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold tracking-wider uppercase mb-4 backdrop-blur-sm border border-white/10">
+            Cita de hoy
           </span>
-          <h2 className="text-2xl font-black mb-2">
+          <h2 className="text-3xl font-black mb-2">
             Terapia Individual (Seguimiento)
           </h2>
-          <p className="text-blue-100 mb-6 flex items-center gap-2 font-medium">
+          <p className="text-blue-100 flex items-center gap-2 mb-6 font-medium">
             <svg
               className="w-5 h-5"
               fill="none"
@@ -93,54 +93,40 @@ export default function DashboardPacientePage() {
             </svg>
             Hoy, 11:30 AM con tu Especialista
           </p>
-          <p className="text-sm text-blue-50/80 max-w-lg leading-relaxed">
+          <p className="text-blue-50 max-w-xl text-sm leading-relaxed">
             Tu especialista ya está preparándose para tu sesión. Puedes ingresar
             a la sala virtual 5 minutos antes de la hora programada para probar
             tu cámara y micrófono.
           </p>
         </div>
-        {/* Decoración geométrica */}
-        <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-white opacity-10 rounded-full blur-2xl"></div>
-        <div className="absolute top-10 right-20 text-9xl opacity-5 select-none">
-          🧠
-        </div>
       </div>
 
-      {/* ACCESOS RÁPIDOS */}
+      {/* Bottom Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Link
-          href="/dashboard-paciente/historial"
-          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all flex items-center gap-5 group cursor-pointer"
-        >
-          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform origin-left">
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex items-start gap-4">
+          <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl shrink-0">
             📝
           </div>
           <div>
-            <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+            <h3 className="font-bold text-gray-900 mb-1">
               Mi Historial Clínico
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500">
               Revisa tus diagnósticos y notas anteriores.
             </p>
           </div>
-        </Link>
-
-        <Link
-          href="/comunidad"
-          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-teal-300 transition-all flex items-center gap-5 group cursor-pointer"
-        >
-          <div className="w-14 h-14 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform origin-left">
+        </div>
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex items-start gap-4">
+          <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl shrink-0">
             🌿
           </div>
           <div>
-            <h3 className="font-bold text-gray-900 group-hover:text-teal-600 transition-colors">
-              PsiEduca
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-bold text-gray-900 mb-1">PsiEduca</h3>
+            <p className="text-sm text-gray-500">
               Explora talleres y artículos para tu bienestar.
             </p>
           </div>
-        </Link>
+        </div>
       </div>
     </div>
   );
