@@ -12,6 +12,9 @@ export default function AgendarCitaPage() {
   const [mensaje, setMensaje] = useState({ tipo: "", texto: "" });
   const [correoPaciente, setCorreoPaciente] = useState("");
 
+  // NUEVO: Estado para guardar las horas que ya están reservadas en la base de datos
+  const [horasOcupadas, setHorasOcupadas] = useState<string[]>([]);
+
   // Estado del formulario
   const [cita, setCita] = useState({
     psicologo: "",
@@ -20,7 +23,7 @@ export default function AgendarCitaPage() {
     motivo: "",
   });
 
-  // Obtener el correo del paciente logueado
+  // 1. Obtener el correo del paciente logueado
   useEffect(() => {
     const obtenerUsuario = async () => {
       const {
@@ -32,6 +35,43 @@ export default function AgendarCitaPage() {
     };
     obtenerUsuario();
   }, []);
+
+  // 2. EL RADAR DE DISPONIBILIDAD: Se activa cada vez que el paciente cambia la fecha o el doctor
+  useEffect(() => {
+    const buscarHorasOcupadas = async () => {
+      if (!cita.fecha) {
+        setHorasOcupadas([]);
+        return;
+      }
+
+      // Si no eligió doctor, usamos el asignado por defecto para buscar
+      const psicologoABuscar = cita.psicologo || "Dr. Asignado Automáticamente";
+
+      try {
+        const { data, error } = await supabase
+          .from("citas")
+          .select("hora")
+          .eq("fecha", cita.fecha)
+          .eq("psicologo", psicologoABuscar);
+
+        if (error) throw error;
+
+        if (data) {
+          const horasTomadas = data.map((c) => c.hora);
+          setHorasOcupadas(horasTomadas);
+
+          // Prevención de errores: Si la hora que ya tenía seleccionada resulta estar ocupada en este nuevo día, se la quitamos
+          if (horasTomadas.includes(cita.hora)) {
+            setCita((prev) => ({ ...prev, hora: "" }));
+          }
+        }
+      } catch (error) {
+        console.error("Error al buscar disponibilidad:", error);
+      }
+    };
+
+    buscarHorasOcupadas();
+  }, [cita.fecha, cita.psicologo, cita.hora]);
 
   const horasDisponibles = [
     "09:00 AM",
@@ -51,7 +91,6 @@ export default function AgendarCitaPage() {
     setCargando(true);
     setMensaje({ tipo: "", texto: "" });
 
-    // Validación de seguridad extra: Asegurarnos de que hay un paciente logueado
     if (!correoPaciente) {
       setMensaje({
         tipo: "error",
@@ -87,7 +126,6 @@ export default function AgendarCitaPage() {
     } catch (err: unknown) {
       console.error(err);
       const error = err as { message?: string };
-      // AQUÍ ESTÁ LA MAGIA: Ahora veremos el error real de Supabase
       setMensaje({
         tipo: "error",
         texto: `Error de Base de Datos: ${error.message || "Desconocido"}`,
@@ -99,7 +137,6 @@ export default function AgendarCitaPage() {
 
   return (
     <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-4xl mx-auto">
-      {/* Cabecera */}
       <div className="mb-10">
         <h1 className="text-3xl font-black text-gray-900 mb-2">
           Agendar Nueva Cita
@@ -110,7 +147,6 @@ export default function AgendarCitaPage() {
         </p>
       </div>
 
-      {/* Indicador de Pasos */}
       <div className="flex items-center gap-4 mb-10">
         <div
           className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${paso >= 1 ? "bg-blue-600 text-white shadow-md" : "bg-gray-200 text-gray-500"}`}
@@ -135,7 +171,6 @@ export default function AgendarCitaPage() {
         </div>
       </div>
 
-      {/* Alertas */}
       {mensaje.texto && (
         <div
           className={`p-4 rounded-xl mb-8 font-bold flex items-center gap-3 border ${mensaje.tipo === "exito" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}
@@ -144,7 +179,7 @@ export default function AgendarCitaPage() {
         </div>
       )}
 
-      {/* PASO 1: Especialista y Motivo */}
+      {/* PASO 1 */}
       {paso === 1 && (
         <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm animate-in slide-in-from-right-4">
           <h2 className="text-xl font-bold text-gray-900 mb-6">
@@ -154,7 +189,7 @@ export default function AgendarCitaPage() {
           <div className="space-y-6">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                Especialista (Opcional)
+                Especialista
               </label>
               <select
                 value={cita.psicologo}
@@ -197,7 +232,7 @@ export default function AgendarCitaPage() {
         </div>
       )}
 
-      {/* PASO 2: Fecha y Hora */}
+      {/* PASO 2 */}
       {paso === 2 && (
         <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm animate-in slide-in-from-right-4">
           <div className="flex justify-between items-center mb-6">
@@ -231,19 +266,31 @@ export default function AgendarCitaPage() {
                 Horas Disponibles
               </label>
               <div className="grid grid-cols-2 gap-3">
-                {horasDisponibles.map((hora) => (
-                  <button
-                    key={hora}
-                    onClick={() => handleSeleccionarHora(hora)}
-                    className={`py-3 px-2 rounded-xl font-bold text-sm transition-all border ${
-                      cita.hora === hora
-                        ? "bg-blue-600 border-blue-600 text-white shadow-md transform scale-105"
-                        : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50"
-                    }`}
-                  >
-                    {hora}
-                  </button>
-                ))}
+                {horasDisponibles.map((hora) => {
+                  const estaOcupada = horasOcupadas.includes(hora);
+
+                  return (
+                    <button
+                      key={hora}
+                      onClick={() => handleSeleccionarHora(hora)}
+                      disabled={estaOcupada}
+                      className={`py-3 px-2 rounded-xl font-bold text-sm transition-all border flex flex-col items-center justify-center ${
+                        estaOcupada
+                          ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-70" // Estilo bloqueado
+                          : cita.hora === hora
+                            ? "bg-blue-600 border-blue-600 text-white shadow-md transform scale-105" // Estilo seleccionado
+                            : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50" // Estilo normal
+                      }`}
+                    >
+                      <span>{hora}</span>
+                      {estaOcupada && (
+                        <span className="text-[10px] font-black text-red-500 uppercase tracking-wider mt-0.5">
+                          Ocupado
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -260,7 +307,7 @@ export default function AgendarCitaPage() {
         </div>
       )}
 
-      {/* PASO 3: Confirmación */}
+      {/* PASO 3 */}
       {paso === 3 && (
         <form
           onSubmit={handleConfirmarCita}
