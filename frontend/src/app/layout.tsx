@@ -1,8 +1,9 @@
 import "./globals.css";
+import { LanguageProvider } from "../context/LanguageContext";
 
 export const metadata = {
-  title: "PsiClinic - Plataforma Clínica",
-  description: "Gestión clínica integral y segura.",
+  title: "Lumina | ConnectedMind",
+  description: "Infraestructura clínica y ecosistema de salud mental.",
 };
 
 export default function RootLayout({
@@ -11,10 +12,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body className="bg-gray-50 text-gray-900 font-sans antialiased">
-        {/* Ya no hay GuardiaRutas bloqueando la carga, el middleware se encarga */}
-        {children}
+    <html lang="es" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        {/* Aquí está la magia: El LanguageProvider envuelve ABSOLUTAMENTE TODO */}
+        <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>
   );

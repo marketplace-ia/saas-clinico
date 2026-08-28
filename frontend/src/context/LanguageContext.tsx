@@ -22,22 +22,26 @@ export const LanguageProvider = ({
   children: React.ReactNode;
 }) => {
   const [lang, setLangState] = useState<LangType>("es");
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    // 1. Leemos la memoria
     const storedLang = localStorage.getItem("lumina_lang") as LangType;
 
+    // 2. Modificamos el DOM directamente (esto no dispara alertas de React)
     if (storedLang) {
-      // 1. Cambiamos la orientación del HTML inmediatamente (para el árabe)
       document.documentElement.dir = storedLang === "ar" ? "rtl" : "ltr";
-
-      // 2. Usamos setTimeout para salir del ciclo síncrono del Effect.
-      // Esto elimina la alerta de "cascading renders" del linter.
-      const timer = setTimeout(() => {
-        setLangState(storedLang);
-      }, 0);
-
-      return () => clearTimeout(timer);
     }
+
+    // 3. Diferimos las actualizaciones de estado de React para evitar la alerta "cascading renders"
+    const timer = setTimeout(() => {
+      if (storedLang) {
+        setLangState(storedLang);
+      }
+      setIsMounted(true);
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const setLang = (newLang: LangType) => {
@@ -45,6 +49,15 @@ export const LanguageProvider = ({
     localStorage.setItem("lumina_lang", newLang);
     document.documentElement.dir = newLang === "ar" ? "rtl" : "ltr";
   };
+
+  // Mientras se carga el navegador, proveemos el contexto por defecto
+  if (!isMounted) {
+    return (
+      <LanguageContext.Provider value={{ lang: "es", setLang, isRtl: false }}>
+        {children}
+      </LanguageContext.Provider>
+    );
+  }
 
   return (
     <LanguageContext.Provider value={{ lang, setLang, isRtl: lang === "ar" }}>
