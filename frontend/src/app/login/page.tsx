@@ -126,22 +126,19 @@ export default function LoginPage() {
         password,
       });
       if (signInError) throw signInError;
-      router.push("/dashboard-paciente");
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
       else setError(t.error);
-    } finally {
       setCargando(false);
     }
   };
 
   const handleGoogleAuth = async () => {
     try {
-      // AQUÍ: El redireccionamiento explícito para Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard-paciente`,
+          redirectTo: `${window.location.origin}/login`,
         },
       });
       if (error) throw error;

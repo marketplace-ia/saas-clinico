@@ -97,7 +97,7 @@ export default function LoginPersonalPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  // RADAR INTELIGENTE (Dashboard Psicólogo)
+  // RADAR INTELIGENTE: Espera a Google y luego te teletransporta
   useEffect(() => {
     const {
       data: { subscription },
@@ -119,22 +119,21 @@ export default function LoginPersonalPage() {
         password,
       });
       if (signInError) throw signInError;
-      router.push("/dashboard-psicologo");
+      // No necesitamos router.push aquí porque el radar lo detectará
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
       else setError(t.error);
-    } finally {
       setCargando(false);
     }
   };
 
   const handleGoogleAuth = async () => {
     try {
-      // AQUÍ: El redireccionamiento explícito para Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard-psicologo`,
+          // LA CORRECCIÓN: Volvemos a esta misma página para que el Radar haga el salto seguro
+          redirectTo: `${window.location.origin}/login-personal`,
         },
       });
       if (error) throw error;

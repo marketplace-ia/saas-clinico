@@ -131,22 +131,20 @@ export default function RegistroPage() {
           .from("roles_usuarios")
           .insert([{ correo: email, rol: "paciente" }]);
       }
-      router.push("/dashboard-paciente");
+      // El radar hará el salto
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
       else setError(t.error);
-    } finally {
       setCargando(false);
     }
   };
 
   const handleGoogleAuth = async () => {
     try {
-      // AQUÍ: El redireccionamiento explícito para Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard-paciente`,
+          redirectTo: `${window.location.origin}/registro`,
         },
       });
       if (error) throw error;
