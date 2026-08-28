@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useLanguage, LangType } from "../context/LanguageContext";
 
-// DICCIONARIO INTERNACIONAL DE IDIOMAS
 const translations = {
   es: {
     nav: {
@@ -207,25 +207,20 @@ const translations = {
   },
 };
 
-type LangType = keyof typeof translations;
-
 export default function LandingPage() {
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const [lang, setLang] = useState<LangType>("es");
 
+  // Extraemos el idioma y la función para cambiarlo desde nuestro Cerebro Global
+  const { lang, setLang, isRtl } = useLanguage();
   const t = translations[lang];
-  const isRtl = lang === "ar";
 
   return (
-    // Las clases dark: detectan automáticamente si el celular está en modo oscuro
     <div
       dir={isRtl ? "rtl" : "ltr"}
       className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white font-sans selection:bg-indigo-500/30 transition-colors duration-300"
     >
-      {/* BARRA DE NAVEGACIÓN (HEADER) */}
       <header className="fixed top-0 w-full bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 z-50 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          {/* Logo */}
           <div className="flex items-center gap-3 group cursor-pointer">
             <div className="w-10 h-10 bg-linear-to-br from-indigo-500 to-teal-400 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)] dark:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all duration-300">
               <svg
@@ -247,7 +242,6 @@ export default function LandingPage() {
             </span>
           </div>
 
-          {/* Navegación Desktop */}
           <nav className="hidden md:flex gap-10 font-medium text-sm text-slate-600 dark:text-gray-400">
             <a
               href="#clinica"
@@ -269,20 +263,19 @@ export default function LandingPage() {
             </Link>
           </nav>
 
-          {/* Botones y Selector de Idioma Desktop */}
           <div className="hidden md:flex items-center gap-5">
-            {/* SELECTOR DE IDIOMA */}
+            {/* SELECTOR DE IDIOMAS CONECTADO AL CONTEXTO */}
             <select
               value={lang}
               onChange={(e) => setLang(e.target.value as LangType)}
               className="bg-transparent text-sm font-bold text-slate-600 dark:text-gray-400 focus:outline-none cursor-pointer"
             >
-              <option value="es">🇪🇸 Español</option>
-              <option value="en">🇺🇸 English</option>
-              <option value="fr">🇫🇷 Français</option>
-              <option value="zh">🇨🇳 中文</option>
-              <option value="hi">🇮🇳 हिन्दी</option>
-              <option value="ar">🇸🇦 العربية</option>
+              <option value="es">🇪🇸 ES</option>
+              <option value="en">🇺🇸 EN</option>
+              <option value="fr">🇫🇷 FR</option>
+              <option value="zh">🇨🇳 ZH</option>
+              <option value="hi">🇮🇳 HI</option>
+              <option value="ar">🇸🇦 AR</option>
             </select>
 
             <Link
@@ -299,7 +292,6 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {/* Botón Hamburguesa para Móviles */}
           <button
             onClick={() => setMenuAbierto(!menuAbierto)}
             className="md:hidden p-2 text-slate-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-white focus:outline-none"
@@ -329,7 +321,6 @@ export default function LandingPage() {
           </button>
         </div>
 
-        {/* MENÚ MÓVIL DESPLEGABLE */}
         {menuAbierto && (
           <div className="md:hidden absolute top-20 left-0 w-full bg-white dark:bg-[#0a0a0a] border-b border-slate-200 dark:border-white/5 shadow-2xl animate-in slide-in-from-top-2">
             <div className="flex flex-col p-6 gap-6">
@@ -360,7 +351,10 @@ export default function LandingPage() {
               <div className="flex flex-col gap-4">
                 <select
                   value={lang}
-                  onChange={(e) => setLang(e.target.value as LangType)}
+                  onChange={(e) => {
+                    setLang(e.target.value as LangType);
+                    setMenuAbierto(false);
+                  }}
                   className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-center font-bold py-3 rounded-xl focus:outline-none"
                 >
                   <option value="es">🇪🇸 Español</option>
@@ -390,7 +384,6 @@ export default function LandingPage() {
         )}
       </header>
 
-      {/* SECCIÓN HERO */}
       <section className="relative pt-40 pb-32 overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-200 h-200 bg-indigo-600/10 dark:bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute top-1/4 left-1/3 w-150 h-150 bg-teal-500/10 dark:bg-teal-500/10 rounded-full blur-[100px] pointer-events-none"></div>
@@ -425,7 +418,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECCIÓN DE ARQUITECTURA */}
       <section
         id="clinica"
         className="py-24 md:py-32 relative border-t border-slate-200 dark:border-white/5 bg-white dark:bg-[#050505] transition-colors duration-300"
@@ -468,10 +460,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div
-              id="psieduca"
-              className="bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 rounded-3xl p-8 flex flex-col h-full hover:bg-slate-100 dark:hover:bg-[#151515] transition-all duration-300"
-            >
+            <div className="bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 rounded-3xl p-8 flex flex-col h-full hover:bg-slate-100 dark:hover:bg-[#151515] transition-all duration-300">
               <div className="w-14 h-14 bg-teal-100 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-2xl flex items-center justify-center mb-6">
                 <svg
                   className="w-7 h-7"
@@ -498,10 +487,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div
-              id="comunidad"
-              className="bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 rounded-3xl p-8 flex flex-col h-full hover:bg-slate-100 dark:hover:bg-[#151515] transition-all duration-300"
-            >
+            <div className="bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-white/5 rounded-3xl p-8 flex flex-col h-full hover:bg-slate-100 dark:hover:bg-[#151515] transition-all duration-300">
               <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mb-6">
                 <svg
                   className="w-7 h-7"
@@ -531,7 +517,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer className="border-t border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-[#0a0a0a] pt-12 pb-8 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
           <div className="flex items-center gap-2 opacity-50">
@@ -562,12 +547,6 @@ export default function LandingPage() {
             >
               {t.auth.prof}
             </Link>
-            <a
-              href="#"
-              className="hover:text-indigo-600 dark:hover:text-white transition-colors"
-            >
-              {t.footer.priv}
-            </a>
           </div>
         </div>
       </footer>
