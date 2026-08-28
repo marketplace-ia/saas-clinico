@@ -138,41 +138,33 @@ export default function RegistroPage() {
 
   const CODIGO_MAESTRO = "LUMINA-PRO-2026";
 
-  // RADAR INTELIGENTE: Lee la memoria tras volver de Google
+  // RADAR INTELIGENTE BLINDADO
   useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session && session.user?.email) {
-        const rolPendiente = localStorage.getItem("lumina_registro_rol");
+        const correoUser = session.user.email;
+        const rolPendiente =
+          localStorage.getItem("lumina_registro_rol") || "paciente";
 
-        if (rolPendiente) {
-          try {
-            // Verificamos si ya existe el rol para no duplicar
-            const { data: existente } = await supabase
-              .from("roles_usuarios")
-              .select("rol")
-              .eq("correo", session.user.email)
-              .maybeSingle();
+        try {
+          // Usamos upsert para forzar el rol correcto en la tabla roles_usuarios basándose en el correo
+          await supabase
+            .from("roles_usuarios")
+            .upsert([{ correo: correoUser, rol: rolPendiente }], {
+              onConflict: "correo",
+            });
+        } catch (e) {
+          console.error("Error sincronizando rol:", e);
+        }
 
-            if (!existente) {
-              await supabase
-                .from("roles_usuarios")
-                .insert([{ correo: session.user.email, rol: rolPendiente }]);
-            }
-          } catch (e) {
-            console.error("Error asignando rol:", e);
-          }
+        localStorage.removeItem("lumina_registro_rol");
 
-          // Limpiamos la memoria y redirigimos
-          localStorage.removeItem("lumina_registro_rol");
-          router.push(
-            rolPendiente === "psicologo"
-              ? "/dashboard-psicologo"
-              : "/dashboard-paciente",
-          );
+        // Redirección infalible según el rol asignado
+        if (rolPendiente === "psicologo") {
+          router.push("/dashboard-psicologo");
         } else {
-          // Si no hay rol pendiente, asumimos que es un inicio de sesión normal o paciente
           router.push("/dashboard-paciente");
         }
       }
@@ -192,16 +184,21 @@ export default function RegistroPage() {
     }
 
     try {
+      // Guardamos temporalmente el rol en la memoria para que el Radar lo atrape al autenticarse
+      localStorage.setItem("lumina_registro_rol", tipoCuenta);
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
       if (signUpError) throw signUpError;
 
-      if (data.user) {
+      if (data.user && data.user.email) {
         await supabase
           .from("roles_usuarios")
-          .insert([{ correo: email, rol: tipoCuenta }]);
+          .upsert([{ correo: data.user.email, rol: tipoCuenta }], {
+            onConflict: "correo",
+          });
       }
 
       if (tipoCuenta === "psicologo") {
@@ -217,17 +214,14 @@ export default function RegistroPage() {
   };
 
   const handleGoogleAuth = async () => {
-    // 1. Validamos el código ANTES de ir a Google
     if (tipoCuenta === "psicologo" && codigoAcceso !== CODIGO_MAESTRO) {
       setError(t.codeError);
       return;
     }
 
     try {
-      // 2. Anotamos en la memoria qué rol eligió
       localStorage.setItem("lumina_registro_rol", tipoCuenta);
 
-      // 3. Lo enviamos a Google (y le decimos que vuelva a esta misma página)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: `${window.location.origin}/registro` },
@@ -320,7 +314,7 @@ export default function RegistroPage() {
                   type="text"
                   value={codigoAcceso}
                   onChange={(e) => setCodigoAcceso(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 bg-indigo-50/50 dark:bg-teal-900/10 border border-indigo-200 dark:border-teal-500/30 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-widest uppercase transition-colors"
+                  className="appearance-none block w-full px-4 py-3 bg-indigo-50/50 dark:bgteal-900/10 border border-indigo-200 dark:border-teal-500/30 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-widest uppercase transition-colors"
                   placeholder="LUMINA-PRO-XXXX"
                 />
               </div>
@@ -363,7 +357,6 @@ export default function RegistroPage() {
             </div>
           </form>
 
-          {/* El botón de Google ahora siempre es visible */}
           <div className="mt-6 relative animate-in fade-in duration-300">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200 dark:border-white/10"></div>
