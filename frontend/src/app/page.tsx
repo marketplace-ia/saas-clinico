@@ -9,14 +9,14 @@ const translations = {
     nav: {
       clinica: "Gestión Clínica",
       psieduca: "Portal PsiEduca",
-      comunidad: "Comunidad ConnectedMind",
+      comunidad: "Comunidad",
     },
     auth: { prof: "Acceso Profesionales", login: "Ingresar" },
     hero: {
       tag: "Aprende • Conecta • Crece • Gestiona",
       title1: "El ecosistema integral para",
       title2: "la comunidad de salud mental.",
-      desc: "Mucho más que un consultorio. Una plataforma unificada para que psicólogos gestionen su clínica, y estudiantes, pacientes y público en general accedan a educación de calidad.",
+      desc: "Mucho más que un consultorio. Una plataforma unificada para que psicólogos gestionen su clínica, y estudiantes y público accedan a educación.",
       btn: "Únete a la Comunidad",
     },
     features: {
@@ -25,11 +25,11 @@ const translations = {
       c1Tag: "Para Clínicas",
       c1Title: "Gestión Inteligente",
       c1Desc:
-        "Agenda sincronizada, historiales médicos encriptados, pasarela de pagos automatizada y telemedicina HD.",
+        "Agenda sincronizada, historiales médicos encriptados, pasarela de pagos automatizada.",
       c2Tag: "Para Estudiantes",
       c2Title: "Portal PsiEduca",
       c2Desc:
-        "Acceso a talleres, recursos didácticos, artículos científicos y herramientas de autocuidado.",
+        "Acceso a talleres, recursos didácticos, artículos científicos y herramientas.",
       c3Tag: "Para Profesores",
       c3Title: "Conexión Global",
       c3Desc:
@@ -44,14 +44,14 @@ const translations = {
     nav: {
       clinica: "Clinical Management",
       psieduca: "PsiEduca Portal",
-      comunidad: "ConnectedMind Community",
+      comunidad: "Community",
     },
     auth: { prof: "Professionals Access", login: "Log In" },
     hero: {
       tag: "Learn • Connect • Grow • Manage",
       title1: "The comprehensive ecosystem for",
       title2: "the mental health community.",
-      desc: "Much more than a clinic. A unified platform for psychologists to manage their practice, and for students, patients, and the public to access quality education.",
+      desc: "Much more than a clinic. A unified platform for psychologists to manage their practice, and for students to access education.",
       btn: "Join the Community",
     },
     features: {
@@ -60,11 +60,11 @@ const translations = {
       c1Tag: "For Clinics",
       c1Title: "Smart Management",
       c1Desc:
-        "Synchronized agenda, encrypted medical records, automated payment gateway, and HD telemedicine.",
+        "Synchronized agenda, encrypted medical records, automated payment gateway.",
       c2Tag: "For Students",
       c2Title: "PsiEduca Portal",
       c2Desc:
-        "Access to workshops, educational resources, scientific articles, and self-care tools.",
+        "Access to workshops, educational resources, scientific articles, and tools.",
       c3Tag: "For Teachers",
       c3Title: "Global Connection",
       c3Desc:
@@ -76,17 +76,13 @@ const translations = {
     },
   },
   zh: {
-    nav: {
-      clinica: "临床管理",
-      psieduca: "PsiEduca 门户",
-      comunidad: "ConnectedMind 社区",
-    },
+    nav: { clinica: "临床管理", psieduca: "PsiEduca 门户", comunidad: "社区" },
     auth: { prof: "专业人士入口", login: "登录" },
     hero: {
       tag: "学习 • 连接 • 成长 • 管理",
       title1: "心理健康社区的",
       title2: "综合生态系统。",
-      desc: "不仅仅是一个诊所。一个统一的平台，供心理学家管理他们的诊所，也供学生、患者和公众获取优质教育。",
+      desc: "不仅仅是一个诊所。一个统一的平台，供心理学家管理他们的诊所，也供公众获取优质教育。",
       btn: "加入社区",
     },
     features: {
@@ -94,10 +90,10 @@ const translations = {
       desc: "临床技术与心理教育交汇的空间。",
       c1Tag: "对于诊所",
       c1Title: "智能管理",
-      c1Desc: "同步日程安排，加密病历，自动支付网关和高清远程医疗。",
+      c1Desc: "同步日程安排，加密病历，自动支付网关。",
       c2Tag: "对于学生",
       c2Title: "PsiEduca 门户",
-      c2Desc: "访问研讨会、教育资源、科学文章和自我保健工具。",
+      c2Desc: "访问研讨会、教育资源、科学文章和工具。",
       c3Tag: "对于教师",
       c3Title: "全球连接",
       c3Desc: "建立支持网络并与最先进的社区分享知识。",
@@ -108,14 +104,14 @@ const translations = {
     nav: {
       clinica: "नैदानिक प्रबंधन",
       psieduca: "PsiEduca पोर्टल",
-      comunidad: "ConnectedMind समुदाय",
+      comunidad: "समुदाय",
     },
     auth: { prof: "पेशेवर पहुंच", login: "लॉग इन करें" },
     hero: {
       tag: "सीखें • जुड़ें • बढ़ें • प्रबंधित करें",
       title1: "मानसिक स्वास्थ्य समुदाय के लिए",
       title2: "व्यापक पारिस्थितिकी तंत्र।",
-      desc: "सिर्फ एक क्लिनिक से कहीं अधिक। मनोवैज्ञानिकों के लिए अपने क्लिनिक का प्रबंधन करने, और छात्रों, रोगियों और जनता के लिए गुणवत्तापूर्ण शिक्षा तक पहुंचने के लिए एक एकीकृत मंच।",
+      desc: "सिर्फ एक क्लिनिक से कहीं अधिक। मनोवैज्ञानिकों के लिए अपने क्लिनिक का प्रबंधन करने, और छात्रों के लिए गुणवत्तापूर्ण शिक्षा तक पहुंचने के लिए एक एकीकृत मंच।",
       btn: "समुदाय में शामिल हों",
     },
     features: {
@@ -124,11 +120,11 @@ const translations = {
       c1Tag: "क्लिनिक के लिए",
       c1Title: "स्मार्ट प्रबंधन",
       c1Desc:
-        "सिंक्रनाइज़ एजेंडा, एन्क्रिप्टेड मेडिकल रिकॉर्ड, स्वचालित भुगतान गेटवे और एचडी टेलीमेडिसिन।",
+        "सिंक्रनाइज़ एजेंडा, एन्क्रिप्टेड मेडिकल रिकॉर्ड, स्वचालित भुगतान गेटवे।",
       c2Tag: "छात्रों के लिए",
       c2Title: "PsiEduca पोर्टल",
       c2Desc:
-        "कार्यशालाओं, शैक्षिक संसाधनों, वैज्ञानिक लेखों और स्व-देखभाल उपकरणों तक पहुंच।",
+        "कार्यशालाओं, शैक्षिक संसाधनों, वैज्ञानिक लेखों और उपकरणों तक पहुंच।",
       c3Tag: "शिक्षकों के लिए",
       c3Title: "वैश्विक कनेक्शन",
       c3Desc:
@@ -143,14 +139,14 @@ const translations = {
     nav: {
       clinica: "Gestion Clinique",
       psieduca: "Portail PsiEduca",
-      comunidad: "Communauté ConnectedMind",
+      comunidad: "Communauté",
     },
     auth: { prof: "Accès Professionnels", login: "Connexion" },
     hero: {
       tag: "Apprendre • Connecter • Grandir • Gérer",
       title1: "L'écosystème complet pour",
       title2: "la communauté de santé mentale.",
-      desc: "Bien plus qu'un simple cabinet. Une plateforme unifiée pour que les psychologues gèrent leur clinique, et pour que les étudiants, les patients et le public accèdent à une éducation de qualité.",
+      desc: "Bien plus qu'un simple cabinet. Une plateforme unifiée pour que les psychologues gèrent leur clinique, et pour accéder à une éducation de qualité.",
       btn: "Rejoindre la Communauté",
     },
     features: {
@@ -159,15 +155,15 @@ const translations = {
       c1Tag: "Pour les Cliniques",
       c1Title: "Gestion Intelligente",
       c1Desc:
-        "Agenda synchronisé, dossiers médicaux cryptés, passerelle de paiement automatisée et télémédecine HD.",
+        "Agenda synchronisé, dossiers médicaux cryptés, passerelle de paiement automatisée.",
       c2Tag: "Pour les Étudiants",
       c2Title: "Portail PsiEduca",
       c2Desc:
-        "Accès à des ateliers, des ressources éducatives, des articles scientifiques et des outils de soins personnels.",
+        "Accès à des ateliers, des ressources éducatives, des articles et des outils.",
       c3Tag: "Pour les Enseignants",
       c3Title: "Connexion Globale",
       c3Desc:
-        "Construisez un réseau de soutien et partagez des connaissances avec la communauté la plus avancée.",
+        "Construisez un réseau de soutien et partagez des connaissances avec la communauté.",
     },
     footer: {
       copy: "Construit pour l'avenir de la santé mentale. © 2026",
@@ -178,14 +174,14 @@ const translations = {
     nav: {
       clinica: "الإدارة السريرية",
       psieduca: "بوابة PsiEduca",
-      comunidad: "مجتمع ConnectedMind",
+      comunidad: "مجتمع",
     },
     auth: { prof: "وصول المحترفين", login: "تسجيل الدخول" },
     hero: {
       tag: "تعلم • تواصل • انمو • أدر",
       title1: "النظام البيئي الشامل لـ",
       title2: "مجتمع الصحة النفسية.",
-      desc: "أكثر بكثير من مجرد عيادة. منصة موحدة لعلماء النفس لإدارة عياداتهم، وللطلاب والمرضى والجمهور للوصول إلى تعليم عالي الجودة.",
+      desc: "أكثر بكثير من مجرد عيادة. منصة موحدة لعلماء النفس لإدارة عياداتهم، وللطلاب للوصول إلى تعليم عالي الجودة.",
       btn: "انضم إلى المجتمع",
     },
     features: {
@@ -193,12 +189,10 @@ const translations = {
       desc: "مساحة تلتقي فيها التكنولوجيا السريرية والتربية النفسية.",
       c1Tag: "للعيادات",
       c1Title: "إدارة ذكية",
-      c1Desc:
-        "جدول زمني متزامن، سجلات طبية مشفرة، بوابة دفع آلية، وتطبيب عن بعد عالي الدقة.",
+      c1Desc: "جدول زمني متزامن، سجلات طبية مشفرة، بوابة دفع آلية.",
       c2Tag: "للطلاب",
       c2Title: "بوابة PsiEduca",
-      c2Desc:
-        "الوصول إلى ورش العمل والموارد التعليمية والمقالات العلمية وأدوات الرعاية الذاتية.",
+      c2Desc: "الوصول إلى ورش العمل والموارد التعليمية والمقالات العلمية.",
       c3Tag: "للمعلمين",
       c3Title: "اتصال عالمي",
       c3Desc: "قم ببناء شبكة دعم وتبادل المعرفة مع المجتمع الأكثر تقدمًا.",
@@ -207,10 +201,19 @@ const translations = {
   },
 };
 
+const idiomasDisponibles = [
+  { code: "es", flag: "🇪🇸", label: "Español" },
+  { code: "en", flag: "🇺🇸", label: "English" },
+  { code: "fr", flag: "🇫🇷", label: "Français" },
+  { code: "zh", flag: "🇨🇳", label: "中文" },
+  { code: "hi", flag: "🇮🇳", label: "हिन्दी" },
+  { code: "ar", flag: "🇸🇦", label: "العربية" },
+];
+
 export default function LandingPage() {
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [menuIdiomas, setMenuIdiomas] = useState(false);
 
-  // Extraemos el idioma y la función para cambiarlo desde nuestro Cerebro Global
   const { lang, setLang, isRtl } = useLanguage();
   const t = translations[lang];
 
@@ -264,19 +267,46 @@ export default function LandingPage() {
           </nav>
 
           <div className="hidden md:flex items-center gap-5">
-            {/* SELECTOR DE IDIOMAS CONECTADO AL CONTEXTO */}
-            <select
-              value={lang}
-              onChange={(e) => setLang(e.target.value as LangType)}
-              className="bg-transparent text-sm font-bold text-slate-600 dark:text-gray-400 focus:outline-none cursor-pointer"
-            >
-              <option value="es">🇪🇸 ES</option>
-              <option value="en">🇺🇸 EN</option>
-              <option value="fr">🇫🇷 FR</option>
-              <option value="zh">🇨🇳 ZH</option>
-              <option value="hi">🇮🇳 HI</option>
-              <option value="ar">🇸🇦 AR</option>
-            </select>
+            {/* NUEVO BOTÓN DROPDOWN DE IDIOMA (DESKTOP) */}
+            <div className="relative">
+              <button
+                onClick={() => setMenuIdiomas(!menuIdiomas)}
+                className="flex items-center gap-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 px-4 py-2.5 rounded-full text-sm font-bold text-slate-700 dark:text-gray-300 transition-colors focus:outline-none"
+              >
+                {idiomasDisponibles.find((i) => i.code === lang)?.flag}{" "}
+                {lang.toUpperCase()}
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {menuIdiomas && (
+                <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
+                  {idiomasDisponibles.map((idioma) => (
+                    <button
+                      key={idioma.code}
+                      onClick={() => {
+                        setLang(idioma.code as LangType);
+                        setMenuIdiomas(false);
+                      }}
+                      className={`w-full text-left px-4 py-3 text-sm font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${lang === idioma.code ? "text-indigo-600 dark:text-indigo-400 bg-slate-50 dark:bg-white/5" : "text-slate-700 dark:text-gray-300"}`}
+                    >
+                      {idioma.flag} {idioma.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <Link
               href="/login-personal"
@@ -321,6 +351,7 @@ export default function LandingPage() {
           </button>
         </div>
 
+        {/* MENÚ MÓVIL (Con cuadrícula de idiomas) */}
         {menuAbierto && (
           <div className="md:hidden absolute top-20 left-0 w-full bg-white dark:bg-[#0a0a0a] border-b border-slate-200 dark:border-white/5 shadow-2xl animate-in slide-in-from-top-2">
             <div className="flex flex-col p-6 gap-6">
@@ -348,22 +379,24 @@ export default function LandingPage() {
                 </Link>
               </nav>
               <div className="h-px bg-slate-200 dark:bg-white/10 w-full"></div>
+
+              {/* CUADRÍCULA DE IDIOMAS MÓVIL */}
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {idiomasDisponibles.map((idioma) => (
+                  <button
+                    key={idioma.code}
+                    onClick={() => {
+                      setLang(idioma.code as LangType);
+                      setMenuAbierto(false);
+                    }}
+                    className={`py-2 px-3 rounded-lg text-sm font-bold text-center border transition-colors ${lang === idioma.code ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-500/30 dark:text-indigo-400" : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-gray-300"}`}
+                  >
+                    {idioma.flag} {idioma.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex flex-col gap-4">
-                <select
-                  value={lang}
-                  onChange={(e) => {
-                    setLang(e.target.value as LangType);
-                    setMenuAbierto(false);
-                  }}
-                  className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-center font-bold py-3 rounded-xl focus:outline-none"
-                >
-                  <option value="es">🇪🇸 Español</option>
-                  <option value="en">🇺🇸 English</option>
-                  <option value="fr">🇫🇷 Français</option>
-                  <option value="zh">🇨🇳 中文</option>
-                  <option value="hi">🇮🇳 हिन्दी</option>
-                  <option value="ar">🇸🇦 العربية</option>
-                </select>
                 <Link
                   href="/login"
                   onClick={() => setMenuAbierto(false)}

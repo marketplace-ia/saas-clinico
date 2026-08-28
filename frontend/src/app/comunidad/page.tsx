@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { useLanguage, LangType } from "../../context/LanguageContext";
 
-// Interfaz estricta para eliminar el error de 'any'
 interface TranslationInterface {
   back: string;
   login: string;
@@ -28,131 +27,140 @@ interface TranslationInterface {
 
 const translations: Record<LangType, TranslationInterface> = {
   es: {
-    back: "Volver a Lumina",
+    back: "Volver",
     login: "Iniciar Sesión",
-    tag: "Aprende • Conecta • Crece • Gestiona",
+    tag: "Aprende • Conecta • Crece",
     sidebar: {
       title: "Explorar Comunidad",
       global: "Muro Global",
-      courses: "Cursos PsiEduca",
-      pros: "Red de Profesionales",
-      students: "Zona Estudiantes",
+      courses: "Cursos",
+      pros: "Profesionales",
+      students: "Estudiantes",
     },
     main: {
       welcome: "Bienvenido al ecosistema.",
-      desc: "Un portal integral diseñado para estudiantes, profesionales y cualquier persona buscando aprender y mejorar su salud mental.",
+      desc: "Un portal integral diseñado para buscar, aprender y mejorar la salud mental.",
       btn: "Crear Publicación",
       empty: "No hay publicaciones",
-      emptyDesc: "Sé el primero en iniciar una conversación en esta categoría.",
+      emptyDesc: "Sé el primero en iniciar una conversación.",
       alert: "Debes iniciar sesión para publicar.",
     },
   },
   en: {
-    back: "Back to Lumina",
+    back: "Back",
     login: "Log In",
-    tag: "Learn • Connect • Grow • Manage",
+    tag: "Learn • Connect • Grow",
     sidebar: {
-      title: "Explore Community",
+      title: "Explore",
       global: "Global Wall",
-      courses: "PsiEduca Courses",
-      pros: "Professionals Network",
-      students: "Students Zone",
+      courses: "Courses",
+      pros: "Professionals",
+      students: "Students",
     },
     main: {
       welcome: "Welcome to the ecosystem.",
-      desc: "A comprehensive portal designed for students, professionals, and anyone looking to learn and improve their mental health.",
+      desc: "A comprehensive portal designed to learn and improve mental health.",
       btn: "Create Post",
       empty: "No posts yet",
-      emptyDesc: "Be the first to start a conversation in this category.",
+      emptyDesc: "Be the first to start a conversation.",
       alert: "You must log in to post.",
     },
   },
   zh: {
-    back: "返回 Lumina",
+    back: "返回",
     login: "登录",
-    tag: "学习 • 连接 • 成长 • 管理",
+    tag: "学习 • 连接 • 成长",
     sidebar: {
       title: "探索社区",
       global: "全球墙",
-      courses: "PsiEduca 课程",
-      pros: "专业网络",
+      courses: "课程",
+      pros: "专业人士",
       students: "学生区",
     },
     main: {
       welcome: "欢迎来到生态系统。",
-      desc: "一个为学生、专业人士和任何希望学习和改善心理健康的人设计的综合门户。",
+      desc: "一个为学习和改善心理健康设计的综合门户。",
       btn: "创建帖子",
       empty: "暂无帖子",
-      emptyDesc: "成为第一个在此类别中发起对话的人。",
+      emptyDesc: "成为第一个发起对话的人。",
       alert: "您必须登录才能发帖。",
     },
   },
   hi: {
-    back: "Lumina पर वापस जाएं",
-    login: "लॉग इन करें",
-    tag: "सीखें • जुड़ें • बढ़ें • प्रबंधित करें",
+    back: "वापस",
+    login: "लॉग इन",
+    tag: "सीखें • जुड़ें • बढ़ें",
     sidebar: {
-      title: "समुदाय का अन्वेषण करें",
+      title: "अन्वेषण करें",
       global: "ग्लोबल वॉल",
-      courses: "PsiEduca पाठ्यक्रम",
-      pros: "पेशेवर नेटवर्क",
-      students: "छात्र क्षेत्र",
+      courses: "पाठ्यक्रम",
+      pros: "पेशेवर",
+      students: "छात्र",
     },
     main: {
       welcome: "पारिस्थितिकी तंत्र में आपका स्वागत है।",
-      desc: "छात्रों, पेशेवरों और मानसिक स्वास्थ्य को सीखने और सुधारने के इच्छुक किसी भी व्यक्ति के लिए डिज़ाइन किया गया एक व्यापक पोर्टल।",
+      desc: "मानसिक स्वास्थ्य को सीखने और सुधारने के लिए डिज़ाइन किया गया एक पोर्टल।",
       btn: "पोस्ट बनाएं",
       empty: "कोई पोस्ट नहीं",
-      emptyDesc: "इस श्रेणी में बातचीत शुरू करने वाले पहले व्यक्ति बनें।",
-      alert: "पोस्ट करने के लिए आपको लॉग কমপক্ষে लॉग इन करना होगा।",
+      emptyDesc: "बातचीत शुरू करने वाले पहले व्यक्ति बनें।",
+      alert: "पोस्ट करने के लिए लॉग इन करें।",
     },
   },
   fr: {
-    back: "Retour à Lumina",
+    back: "Retour",
     login: "Connexion",
-    tag: "Apprendre • Connecter • Grandir • Gérer",
+    tag: "Apprendre • Connecter • Grandir",
     sidebar: {
-      title: "Explorer la Communauté",
+      title: "Explorer",
       global: "Mur Global",
-      courses: "Cours PsiEduca",
-      pros: "Réseau de Professionnels",
-      students: "Zone Étudiants",
+      courses: "Cours",
+      pros: "Professionnels",
+      students: "Étudiants",
     },
     main: {
       welcome: "Bienvenue dans l'écosystème.",
-      desc: "Un portail complet conçu pour les étudiants, les professionnels et toute personne cherchant à apprendre et à améliorer sa santé mentale.",
+      desc: "Un portail complet conçu pour apprendre et améliorer la santé mentale.",
       btn: "Créer une publication",
       empty: "Aucune publication",
-      emptyDesc:
-        "Soyez le premier à lancer une conversation dans cette catégorie.",
+      emptyDesc: "Soyez le premier à lancer une conversation.",
       alert: "Vous devez vous connecter pour publier.",
     },
   },
   ar: {
-    back: "العودة إلى Lumina",
+    back: "العودة",
     login: "تسجيل الدخول",
-    tag: "تعلم • تواصل • انمو • أدر",
+    tag: "تعلم • تواصل • انمو",
     sidebar: {
-      title: "استكشاف المجتمع",
+      title: "استكشاف",
       global: "الجدار العالمي",
-      courses: "دورات PsiEduca",
-      pros: "شبكة المحترفين",
-      students: "منطقة الطلاب",
+      courses: "دورات",
+      pros: "محترفون",
+      students: "طلاب",
     },
     main: {
       welcome: "مرحبًا بك في النظام البيئي.",
-      desc: "بوابة شاملة مصممة للطلاب والمحترفين وأي شخص يتطلع إلى التعلم وتحسين صحته العقلية.",
+      desc: "بوابة شاملة مصممة للتعلم وتحسين الصحة العقلية.",
       btn: "إنشاء منشور",
       empty: "لا توجد منشورات",
-      emptyDesc: "كن الأول في بدء محادثة في هذه الفئة.",
+      emptyDesc: "كن الأول في بدء محادثة.",
       alert: "يجب عليك تسجيل الدخول للنشر.",
     },
   },
 };
 
+const idiomasDisponibles = [
+  { code: "es", flag: "🇪🇸", label: "Español" },
+  { code: "en", flag: "🇺🇸", label: "English" },
+  { code: "fr", flag: "🇫🇷", label: "Français" },
+  { code: "zh", flag: "🇨🇳", label: "中文" },
+  { code: "hi", flag: "🇮🇳", label: "हिन्दी" },
+  { code: "ar", flag: "🇸🇦", label: "العربية" },
+];
+
 export default function ComunidadPortalPage() {
   const [filtroActivo, setFiltroActivo] = useState("todos");
-  const { lang, isRtl } = useLanguage();
+  const [menuIdiomas, setMenuIdiomas] = useState(false);
+  const { lang, setLang, isRtl } = useLanguage();
   const t = translations[lang];
 
   const foros = [
@@ -198,12 +206,10 @@ export default function ComunidadPortalPage() {
     filtroActivo === "todos" ? true : foro.categoria === filtroActivo,
   );
 
-  const handleCrearPublicacion = () => alert(t.main.alert);
-
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className="min-h-screen bg-[#f8fafc] font-sans text-slate-900"
+      className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 transition-colors duration-300"
     >
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
@@ -232,7 +238,48 @@ export default function ComunidadPortalPage() {
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-4">
+            {/* BOTÓN DESPLEGABLE DE IDIOMAS */}
+            <div className="relative hidden md:block">
+              <button
+                onClick={() => setMenuIdiomas(!menuIdiomas)}
+                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-full text-sm font-bold text-slate-700 transition-colors focus:outline-none"
+              >
+                {idiomasDisponibles.find((i) => i.code === lang)?.flag}{" "}
+                {lang.toUpperCase()}
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              {menuIdiomas && (
+                <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
+                  {idiomasDisponibles.map((idioma) => (
+                    <button
+                      key={idioma.code}
+                      onClick={() => {
+                        setLang(idioma.code as LangType);
+                        setMenuIdiomas(false);
+                      }}
+                      className={`w-full text-left px-4 py-3 text-sm font-bold hover:bg-slate-50 transition-colors ${lang === idioma.code ? "text-indigo-600 bg-slate-50" : "text-slate-700"}`}
+                    >
+                      {idioma.flag} {idioma.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <Link
               href="/"
               className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors hidden md:block"
@@ -248,6 +295,21 @@ export default function ComunidadPortalPage() {
           </div>
         </div>
       </header>
+
+      {/* CUADRÍCULA DE IDIOMAS PARA MÓVIL EN LA COMUNIDAD */}
+      <div className="md:hidden bg-white border-b border-slate-200 p-4">
+        <div className="grid grid-cols-3 gap-2">
+          {idiomasDisponibles.map((idioma) => (
+            <button
+              key={idioma.code}
+              onClick={() => setLang(idioma.code as LangType)}
+              className={`py-2 px-1 rounded-lg text-xs font-bold text-center border transition-colors ${lang === idioma.code ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-slate-50 border-slate-200 text-slate-700"}`}
+            >
+              {idioma.flag} {idioma.code.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 flex flex-col md:flex-row gap-8">
         <aside className="w-full md:w-64 shrink-0">
@@ -294,7 +356,7 @@ export default function ComunidadPortalPage() {
               </p>
               <div className="flex gap-3">
                 <button
-                  onClick={handleCrearPublicacion}
+                  onClick={() => alert(t.main.alert)}
                   className="bg-white text-indigo-950 font-bold py-2.5 px-6 rounded-xl text-sm hover:bg-indigo-50 transition-colors shadow-md"
                 >
                   {t.main.btn}
