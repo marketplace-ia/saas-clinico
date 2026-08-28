@@ -136,9 +136,9 @@ export default function RegistroPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  const CODIGO_MAESTRO = "LUMINA-PRO-2026";
+  // NUEVO CÓDIGO MAESTRO CRIPTOGRÁFICO
+  const CODIGO_MAESTRO = "XT89-V2P4-K7M6";
 
-  // RADAR INTELIGENTE BLINDADO
   useEffect(() => {
     const {
       data: { subscription },
@@ -149,7 +149,6 @@ export default function RegistroPage() {
           localStorage.getItem("lumina_registro_rol") || "paciente";
 
         try {
-          // Usamos upsert para forzar el rol correcto en la tabla roles_usuarios basándose en el correo
           await supabase
             .from("roles_usuarios")
             .upsert([{ correo: correoUser, rol: rolPendiente }], {
@@ -161,7 +160,6 @@ export default function RegistroPage() {
 
         localStorage.removeItem("lumina_registro_rol");
 
-        // Redirección infalible según el rol asignado
         if (rolPendiente === "psicologo") {
           router.push("/dashboard-psicologo");
         } else {
@@ -177,14 +175,15 @@ export default function RegistroPage() {
     setCargando(true);
     setError("");
 
-    if (tipoCuenta === "psicologo" && codigoAcceso !== CODIGO_MAESTRO) {
+    const codigoLimpio = codigoAcceso.trim();
+
+    if (tipoCuenta === "psicologo" && codigoLimpio !== CODIGO_MAESTRO) {
       setError(t.codeError);
       setCargando(false);
       return;
     }
 
     try {
-      // Guardamos temporalmente el rol en la memoria para que el Radar lo atrape al autenticarse
       localStorage.setItem("lumina_registro_rol", tipoCuenta);
 
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -214,7 +213,9 @@ export default function RegistroPage() {
   };
 
   const handleGoogleAuth = async () => {
-    if (tipoCuenta === "psicologo" && codigoAcceso !== CODIGO_MAESTRO) {
+    const codigoLimpio = codigoAcceso.trim();
+
+    if (tipoCuenta === "psicologo" && codigoLimpio !== CODIGO_MAESTRO) {
       setError(t.codeError);
       return;
     }
@@ -314,8 +315,8 @@ export default function RegistroPage() {
                   type="text"
                   value={codigoAcceso}
                   onChange={(e) => setCodigoAcceso(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 bg-indigo-50/50 dark:bgteal-900/10 border border-indigo-200 dark:border-teal-500/30 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-widest uppercase transition-colors"
-                  placeholder="LUMINA-PRO-XXXX"
+                  className="appearance-none block w-full px-4 py-3 bg-indigo-50/50 dark:bg-teal-900/10 border border-indigo-200 dark:border-teal-500/30 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-widest uppercase transition-colors"
+                  placeholder="XXXX-XXXX-XXXX"
                 />
               </div>
             )}
