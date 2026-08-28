@@ -2,34 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
-// CORRECCIÓN: Se eliminó el import "Link" que no se estaba utilizando
+import Link from "next/link";
 
-interface CitaMedica {
+interface Cita {
   id: string;
+  paciente_correo: string;
   fecha: string;
   hora: string;
   motivo: string;
   estado: string;
 }
 
-export default function AgendaPsicologoPage() {
-  const [citas, setCitas] = useState<CitaMedica[]>([]);
+export default function AgendaClinicaPage() {
+  const [citas, setCitas] = useState<Cita[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [refrescar, setRefrescar] = useState(0);
 
   useEffect(() => {
-    const cargarAgenda = async () => {
-      setCargando(true);
+    const obtenerCitas = async () => {
       try {
+        // Traemos todas las citas ordenadas por fecha
         const { data, error } = await supabase
           .from("citas")
           .select("*")
-          .in("estado", ["confirmada", "completada", "pendiente"])
-          .order("fecha", { ascending: true })
-          .order("hora", { ascending: true });
+          .order("fecha", { ascending: true });
 
         if (error) throw error;
-        setCitas(data || []);
+        if (data) setCitas(data);
       } catch (error) {
         console.error("Error al cargar la agenda:", error);
       } finally {
@@ -37,169 +35,106 @@ export default function AgendaPsicologoPage() {
       }
     };
 
-    cargarAgenda();
-  }, [refrescar]);
-
-  const marcarComoCompletada = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("citas")
-        .update({ estado: "completada" })
-        .eq("id", id);
-
-      if (error) throw error;
-      setRefrescar((prev) => prev + 1);
-    } catch (error) {
-      alert("Error al actualizar el estado de la cita.");
-      console.error(error);
-    }
-  };
-
-  const citasPendientes = citas.filter(
-    (c) => c.estado === "confirmada" || c.estado === "pendiente",
-  );
-  const citasHistorial = citas.filter((c) => c.estado === "completada");
+    obtenerCitas();
+  }, []);
 
   return (
-    <div className="w-full p-8 font-sans">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Mi Agenda Clínica</h1>
-        <p className="text-gray-500 mt-1">
-          Revisa tus próximas sesiones y marca las consultas finalizadas.
-        </p>
+    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-6xl mx-auto">
+      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 mb-2">
+            Agenda Clínica
+          </h1>
+          <p className="text-gray-500">
+            Listado completo de todas tus sesiones programadas.
+          </p>
+        </div>
+        <Link
+          href="/sala-virtual"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center justify-center gap-2"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+            ></path>
+          </svg>
+          Ir a Sala Virtual
+        </Link>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-700 flex items-center gap-2">
-            <span className="text-2xl">📅</span> Próximas Sesiones
-          </h2>
-          <span className="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-1 rounded-full">
-            {citasPendientes.length} programadas
-          </span>
+      {cargando ? (
+        <div className="text-center py-20">
+          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500 font-bold">Cargando base de datos...</p>
         </div>
-
-        {cargando ? (
-          <div className="p-12 text-center text-gray-500 animate-pulse">
-            Sincronizando agenda...
-          </div>
-        ) : citasPendientes.length === 0 ? (
-          <div className="p-12 text-center text-gray-500">
-            <div className="text-4xl mb-4">🙌</div>
-            <p className="font-medium text-lg">
-              No tienes citas programadas para atender.
-            </p>
-          </div>
-        ) : (
+      ) : citas.length === 0 ? (
+        <div className="bg-white border border-dashed border-gray-300 rounded-4xl p-16 text-center shadow-sm">
+          <div className="text-6xl mb-4">🗓️</div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">
+            Agenda Vacía
+          </h2>
+          <p className="text-gray-500 max-w-md mx-auto">
+            No hay citas programadas en el sistema en este momento.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-100 rounded-4xl p-8 shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-white text-gray-500 text-sm border-b border-gray-100">
-                  <th className="p-5 font-semibold">Fecha y Hora</th>
-                  <th className="p-5 font-semibold">Motivo de Consulta</th>
-                  <th className="p-5 font-semibold text-center">
-                    Estado Administrativo
-                  </th>
-                  <th className="p-5 font-semibold text-right">
-                    Acción Clínica
-                  </th>
+                <tr className="border-b border-gray-100 text-gray-400 text-xs uppercase tracking-wider">
+                  <th className="pb-4 font-bold">Fecha</th>
+                  <th className="pb-4 font-bold">Hora</th>
+                  <th className="pb-4 font-bold">Paciente</th>
+                  <th className="pb-4 font-bold">Motivo Registrado</th>
+                  <th className="pb-4 font-bold text-right">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {citasPendientes.map((cita) => (
-                  <tr key={cita.id} className="hover:bg-blue-50/30 transition">
-                    <td className="p-5">
-                      <div className="font-bold text-gray-800 text-lg">
+              <tbody className="text-sm">
+                {citas.map((cita) => {
+                  const nombrePaciente = cita.paciente_correo.split("@")[0];
+
+                  return (
+                    <tr
+                      key={cita.id}
+                      className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="py-5 font-black text-gray-900">
                         {cita.fecha}
-                      </div>
-                      <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          ></path>
-                        </svg>
+                      </td>
+                      <td className="py-5 font-bold text-blue-600">
                         {cita.hora}
-                      </div>
-                    </td>
-                    <td className="p-5 text-gray-600 font-medium">
-                      {cita.motivo}
-                    </td>
-                    <td className="p-5 text-center">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase border ${
-                          cita.estado === "pendiente"
-                            ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                            : "bg-green-50 text-green-700 border-green-200"
-                        }`}
-                      >
-                        {cita.estado}
-                      </span>
-                    </td>
-                    <td className="p-5 text-right">
-                      {cita.estado === "confirmada" ? (
-                        <button
-                          onClick={() => marcarComoCompletada(cita.id)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm"
+                      </td>
+                      <td className="py-5 font-bold text-gray-700 capitalize">
+                        {nombrePaciente}
+                      </td>
+                      <td className="py-5 text-gray-500 italic max-w-xs truncate">
+                        &quot;{cita.motivo}&quot;
+                      </td>
+                      <td className="py-5 text-right">
+                        <Link
+                          href="/dashboard-psicologo/pacientes"
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg transition text-xs"
                         >
-                          ✓ Finalizar Sesión
-                        </button>
-                      ) : (
-                        <span className="text-gray-400 text-sm italic">
-                          Esperando a secretaria
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          Ver Historial
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50">
-          <h2 className="text-lg font-semibold text-gray-700">
-            Historial de Sesiones Completadas
-          </h2>
         </div>
-
-        {citasHistorial.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 text-sm">
-            Aún no has marcado ninguna sesión como completada.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <tbody className="divide-y divide-gray-50">
-                {citasHistorial.map((cita) => (
-                  <tr key={cita.id} className="bg-gray-50/50">
-                    <td className="p-4 text-gray-500 font-medium">
-                      {cita.fecha} - {cita.hora}
-                    </td>
-                    <td className="p-4 text-gray-400 truncate max-w-xs">
-                      {cita.motivo}
-                    </td>
-                    <td className="p-4 text-right">
-                      <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">
-                        COMPLETADA
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

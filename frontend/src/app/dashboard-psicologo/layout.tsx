@@ -74,7 +74,7 @@ export default function PsicologoLayout({
           </div>
           <nav className="px-4 space-y-2">
             <Link
-              href="/dashboard-psicologo"
+              href="/dashboard-psicologo/agenda"
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors ${pathname === "/dashboard-psicologo" ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"}`}
             >
               🏠 Mi Consultorio
