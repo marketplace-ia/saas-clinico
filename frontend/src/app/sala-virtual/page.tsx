@@ -71,7 +71,7 @@ export default function SalaVirtualPage() {
 
   // Generamos una sala única y segura en los servidores de Jitsi
   // Le pasamos el nombre de nuestro usuario para que entre identificado
-  const roomName = "PsiClinic_Consultorio_Seguro_2026";
+  const roomName = "Lumina_Consultorio_Seguro_2026";
   const jitsiUrl = `https://meet.jit.si/${roomName}#userInfo.displayName="${nombreUsuario}"`;
 
   return (
@@ -81,7 +81,7 @@ export default function SalaVirtualPage() {
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.7)]"></div>
           <h1 className="font-black tracking-wider text-lg">
-            PsiClinic{" "}
+            Lumina{" "}
             <span className="font-light text-gray-400">| Consulta En Vivo</span>
           </h1>
         </div>

@@ -101,9 +101,7 @@ export default function DashboardSecretariaResumen() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Control General</h1>
-          <p className="text-slate-500 mt-1">
-            Panel administrativo de PsiClinic.
-          </p>
+          <p className="text-slate-500 mt-1">Panel administrativo de Lumina.</p>
         </div>
         <button
           onClick={() => setMostrarModal(true)}
@@ -204,7 +202,7 @@ export default function DashboardSecretariaResumen() {
                   type="email"
                   name="psicologo_correo"
                   required
-                  placeholder="psicologo@psiclinic.com"
+                  placeholder="psicologo@Lumina.com"
                   value={formulario.psicologo_correo}
                   onChange={manejarCambio}
                   className="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-700 bg-white"

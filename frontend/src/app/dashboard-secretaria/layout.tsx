@@ -48,7 +48,7 @@ export default function SecretariaLayout({
           <div className="w-8 h-8 bg-purple-600 text-white rounded-lg flex items-center justify-center font-bold shadow-sm">
             Ψ
           </div>
-          <span className="font-bold text-xl text-gray-900">PsiClinic</span>
+          <span className="font-bold text-xl text-gray-900">Lumina</span>
         </div>
         <button
           onClick={() => setMenuAbierto(!menuAbierto)}
@@ -88,7 +88,7 @@ export default function SecretariaLayout({
               Ψ
             </div>
             <span className="font-bold text-2xl text-gray-900 tracking-tight">
-              PsiClinic
+              Lumina
             </span>
           </div>
           <p className="text-xs font-black text-gray-400 uppercase tracking-wider ml-13">
