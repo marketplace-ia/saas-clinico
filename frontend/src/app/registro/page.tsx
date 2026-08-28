@@ -17,6 +17,10 @@ interface AuthTranslation {
   error: string;
   or: string;
   googleBtn: string;
+  tabPatient: string;
+  tabDoc: string;
+  codeLabel: string;
+  codeError: string;
 }
 
 const translations: Record<LangType, AuthTranslation> = {
@@ -27,10 +31,14 @@ const translations: Record<LangType, AuthTranslation> = {
     email: "Correo electrónico",
     pass: "Contraseña",
     btn: "Registrarme ahora",
-    loading: "Creando infraestructura...",
+    loading: "Procesando...",
     error: "Ocurrió un error inesperado.",
     or: "O regístrate con",
     googleBtn: "Continuar con Google",
+    tabPatient: "Soy Paciente",
+    tabDoc: "Soy Especialista",
+    codeLabel: "Código de Activación Profesional",
+    codeError: "Código de activación inválido.",
   },
   en: {
     title: "Create account",
@@ -39,10 +47,14 @@ const translations: Record<LangType, AuthTranslation> = {
     email: "Email address",
     pass: "Password",
     btn: "Register now",
-    loading: "Creating infrastructure...",
+    loading: "Processing...",
     error: "An unexpected error occurred.",
     or: "Or sign up with",
     googleBtn: "Continue with Google",
+    tabPatient: "I am a Patient",
+    tabDoc: "I am a Specialist",
+    codeLabel: "Professional Activation Code",
+    codeError: "Invalid activation code.",
   },
   zh: {
     title: "创建账户",
@@ -51,10 +63,14 @@ const translations: Record<LangType, AuthTranslation> = {
     email: "电子邮件",
     pass: "密码",
     btn: "立即注册",
-    loading: "正在创建...",
+    loading: "处理中...",
     error: "发生意外错误。",
     or: "或使用以下方式注册",
     googleBtn: "使用 Google 继续",
+    tabPatient: "我是患者",
+    tabDoc: "我是专家",
+    codeLabel: "专业激活码",
+    codeError: "激活码无效。",
   },
   hi: {
     title: "खाता बनाएं",
@@ -63,10 +79,14 @@ const translations: Record<LangType, AuthTranslation> = {
     email: "ईमेल पता",
     pass: "पासवर्ड",
     btn: "अभी पंजीकरण करें",
-    loading: "बनाया जा रहा है...",
+    loading: "प्रसंस्करण...",
     error: "एक अप्रत्याशित त्रुटि हुई।",
     or: "या इसके साथ पंजीकरण करें",
     googleBtn: "Google के साथ जारी रखें",
+    tabPatient: "मैं एक मरीज हूँ",
+    tabDoc: "मैं एक विशेषज्ञ हूँ",
+    codeLabel: "पेशेवर सक्रियण कोड",
+    codeError: "अमान्य सक्रियण कोड।",
   },
   fr: {
     title: "Créer un compte",
@@ -75,10 +95,14 @@ const translations: Record<LangType, AuthTranslation> = {
     email: "Adresse e-mail",
     pass: "Mot de passe",
     btn: "S'inscrire maintenant",
-    loading: "Création en cours...",
+    loading: "Traitement...",
     error: "Une erreur inattendue s'est produite.",
     or: "Ou inscrivez-vous avec",
     googleBtn: "Continuer avec Google",
+    tabPatient: "Je suis un patient",
+    tabDoc: "Je suis un spécialiste",
+    codeLabel: "Code d'activation professionnel",
+    codeError: "Code d'activation invalide.",
   },
   ar: {
     title: "إنشاء حساب",
@@ -87,16 +111,24 @@ const translations: Record<LangType, AuthTranslation> = {
     email: "البريد الإلكتروني",
     pass: "كلمة المرور",
     btn: "سجل الآن",
-    loading: "جاري الإنشاء...",
+    loading: "جاري المعالجة...",
     error: "حدث خطأ غير متوقع.",
     or: "أو سجل باستخدام",
     googleBtn: "المتابعة باستخدام Google",
+    tabPatient: "أنا مريض",
+    tabDoc: "أنا متخصص",
+    codeLabel: "رمز التفعيل المهني",
+    codeError: "رمز التفعيل غير صالح.",
   },
 };
 
 export default function RegistroPage() {
+  const [tipoCuenta, setTipoCuenta] = useState<"paciente" | "psicologo">(
+    "paciente",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [codigoAcceso, setCodigoAcceso] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
   const router = useRouter();
@@ -104,13 +136,45 @@ export default function RegistroPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  // RADAR INTELIGENTE
+  const CODIGO_MAESTRO = "LUMINA-PRO-2026";
+
+  // RADAR INTELIGENTE: Lee la memoria tras volver de Google
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        router.push("/dashboard-paciente");
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session && session.user?.email) {
+        const rolPendiente = localStorage.getItem("lumina_registro_rol");
+
+        if (rolPendiente) {
+          try {
+            // Verificamos si ya existe el rol para no duplicar
+            const { data: existente } = await supabase
+              .from("roles_usuarios")
+              .select("rol")
+              .eq("correo", session.user.email)
+              .maybeSingle();
+
+            if (!existente) {
+              await supabase
+                .from("roles_usuarios")
+                .insert([{ correo: session.user.email, rol: rolPendiente }]);
+            }
+          } catch (e) {
+            console.error("Error asignando rol:", e);
+          }
+
+          // Limpiamos la memoria y redirigimos
+          localStorage.removeItem("lumina_registro_rol");
+          router.push(
+            rolPendiente === "psicologo"
+              ? "/dashboard-psicologo"
+              : "/dashboard-paciente",
+          );
+        } else {
+          // Si no hay rol pendiente, asumimos que es un inicio de sesión normal o paciente
+          router.push("/dashboard-paciente");
+        }
       }
     });
     return () => subscription.unsubscribe();
@@ -120,18 +184,31 @@ export default function RegistroPage() {
     e.preventDefault();
     setCargando(true);
     setError("");
+
+    if (tipoCuenta === "psicologo" && codigoAcceso !== CODIGO_MAESTRO) {
+      setError(t.codeError);
+      setCargando(false);
+      return;
+    }
+
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
       if (signUpError) throw signUpError;
+
       if (data.user) {
         await supabase
           .from("roles_usuarios")
-          .insert([{ correo: email, rol: "paciente" }]);
+          .insert([{ correo: email, rol: tipoCuenta }]);
       }
-      // El radar hará el salto
+
+      if (tipoCuenta === "psicologo") {
+        router.push("/dashboard-psicologo");
+      } else {
+        router.push("/dashboard-paciente");
+      }
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
       else setError(t.error);
@@ -140,12 +217,20 @@ export default function RegistroPage() {
   };
 
   const handleGoogleAuth = async () => {
+    // 1. Validamos el código ANTES de ir a Google
+    if (tipoCuenta === "psicologo" && codigoAcceso !== CODIGO_MAESTRO) {
+      setError(t.codeError);
+      return;
+    }
+
     try {
+      // 2. Anotamos en la memoria qué rol eligió
+      localStorage.setItem("lumina_registro_rol", tipoCuenta);
+
+      // 3. Lo enviamos a Google (y le decimos que vuelva a esta misma página)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/registro`,
-        },
+        options: { redirectTo: `${window.location.origin}/registro` },
       });
       if (error) throw error;
     } catch (err: unknown) {
@@ -202,12 +287,45 @@ export default function RegistroPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="bg-white dark:bg-[#111] py-8 px-6 shadow-xl rounded-3xl border border-slate-200 dark:border-white/10 sm:px-10 transition-colors duration-300">
+          <div className="flex bg-slate-100 dark:bg-[#1a1a1a] p-1 rounded-xl mb-6">
+            <button
+              type="button"
+              onClick={() => setTipoCuenta("paciente")}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${tipoCuenta === "paciente" ? "bg-white dark:bg-[#2a2a2a] shadow-sm text-indigo-600 dark:text-teal-400" : "text-slate-500 hover:text-slate-700 dark:hover:text-gray-300"}`}
+            >
+              {t.tabPatient}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipoCuenta("psicologo")}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${tipoCuenta === "psicologo" ? "bg-white dark:bg-[#2a2a2a] shadow-sm text-indigo-600 dark:text-teal-400" : "text-slate-500 hover:text-slate-700 dark:hover:text-gray-300"}`}
+            >
+              {t.tabDoc}
+            </button>
+          </div>
+
           <form className="space-y-6" onSubmit={handleRegistro}>
             {error && (
               <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-4 rounded-xl text-sm font-bold border border-red-100 dark:border-red-500/30">
                 {error}
               </div>
             )}
+
+            {tipoCuenta === "psicologo" && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="block text-sm font-bold text-slate-700 dark:text-gray-300 mb-2">
+                  {t.codeLabel}
+                </label>
+                <input
+                  type="text"
+                  value={codigoAcceso}
+                  onChange={(e) => setCodigoAcceso(e.target.value)}
+                  className="appearance-none block w-full px-4 py-3 bg-indigo-50/50 dark:bg-teal-900/10 border border-indigo-200 dark:border-teal-500/30 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-widest uppercase transition-colors"
+                  placeholder="LUMINA-PRO-XXXX"
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-bold text-slate-700 dark:text-gray-300 mb-2">
                 {t.email}
@@ -245,7 +363,8 @@ export default function RegistroPage() {
             </div>
           </form>
 
-          <div className="mt-6 relative">
+          {/* El botón de Google ahora siempre es visible */}
+          <div className="mt-6 relative animate-in fade-in duration-300">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200 dark:border-white/10"></div>
             </div>
@@ -256,7 +375,7 @@ export default function RegistroPage() {
             </div>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6 animate-in fade-in duration-300">
             <button
               onClick={handleGoogleAuth}
               type="button"
