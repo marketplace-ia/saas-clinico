@@ -97,7 +97,7 @@ export default function LoginPersonalPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  // RADAR INTELIGENTE (Redirige al dashboard del psicólogo)
+  // RADAR INTELIGENTE (Dashboard Psicólogo)
   useEffect(() => {
     const {
       data: { subscription },
@@ -130,8 +130,12 @@ export default function LoginPersonalPage() {
 
   const handleGoogleAuth = async () => {
     try {
+      // AQUÍ: El redireccionamiento explícito para Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard-psicologo`,
+        },
       });
       if (error) throw error;
     } catch (err: unknown) {

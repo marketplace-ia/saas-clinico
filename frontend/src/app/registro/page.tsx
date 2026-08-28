@@ -142,8 +142,12 @@ export default function RegistroPage() {
 
   const handleGoogleAuth = async () => {
     try {
+      // AQUÍ: El redireccionamiento explícito para Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard-paciente`,
+        },
       });
       if (error) throw error;
     } catch (err: unknown) {

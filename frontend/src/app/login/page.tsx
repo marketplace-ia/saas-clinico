@@ -104,7 +104,7 @@ export default function LoginPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  // RADAR INTELIGENTE: Si regresas de Google, te envía directo al dashboard
+  // RADAR INTELIGENTE
   useEffect(() => {
     const {
       data: { subscription },
@@ -137,9 +137,12 @@ export default function LoginPage() {
 
   const handleGoogleAuth = async () => {
     try {
-      // Quitamos el redirectTo para que Supabase use su ruta segura por defecto
+      // AQUÍ: El redireccionamiento explícito para Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard-paciente`,
+        },
       });
       if (error) throw error;
     } catch (err: unknown) {
