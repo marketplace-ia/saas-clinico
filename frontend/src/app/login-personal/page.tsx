@@ -118,8 +118,12 @@ export default function LoginPersonalPage() {
 
   const handleGoogleAuth = async () => {
     try {
+      // AQUÍ: Redirige al dashboard del psicólogo
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard-psicologo`,
+        },
       });
       if (error) throw error;
     } catch (err: unknown) {
@@ -213,7 +217,6 @@ export default function LoginPersonalPage() {
             </div>
           </form>
 
-          {/* SEPARADOR Y BOTÓN DE GOOGLE */}
           <div className="mt-6 relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200 dark:border-white/10"></div>

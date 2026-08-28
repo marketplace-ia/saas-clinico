@@ -130,8 +130,12 @@ export default function RegistroPage() {
 
   const handleGoogleAuth = async () => {
     try {
+      // AQUÍ ESTÁ LA MAGIA: Le indicamos la ruta exacta de retorno
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard-paciente`,
+        },
       });
       if (error) throw error;
     } catch (err: unknown) {
@@ -231,7 +235,6 @@ export default function RegistroPage() {
             </div>
           </form>
 
-          {/* SEPARADOR Y BOTÓN DE GOOGLE */}
           <div className="mt-6 relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200 dark:border-white/10"></div>
