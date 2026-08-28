@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -104,6 +104,18 @@ export default function RegistroPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
+  // RADAR INTELIGENTE
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        router.push("/dashboard-paciente");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [router]);
+
   const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault();
     setCargando(true);
@@ -130,12 +142,8 @@ export default function RegistroPage() {
 
   const handleGoogleAuth = async () => {
     try {
-      // AQUÍ ESTÁ LA MAGIA: Le indicamos la ruta exacta de retorno
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/dashboard-paciente`,
-        },
       });
       if (error) throw error;
     } catch (err: unknown) {

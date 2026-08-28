@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -97,6 +97,18 @@ export default function LoginPersonalPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
+  // RADAR INTELIGENTE (Redirige al dashboard del psicólogo)
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        router.push("/dashboard-psicologo");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setCargando(true);
@@ -118,12 +130,8 @@ export default function LoginPersonalPage() {
 
   const handleGoogleAuth = async () => {
     try {
-      // AQUÍ: Redirige al dashboard del psicólogo
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/dashboard-psicologo`,
-        },
       });
       if (error) throw error;
     } catch (err: unknown) {
