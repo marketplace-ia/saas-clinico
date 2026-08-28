@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 
 export default function LandingPage() {
-  // Estado para controlar si el menú del celular está abierto o cerrado
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   return (
@@ -34,7 +33,7 @@ export default function LandingPage() {
             </span>
           </div>
 
-          {/* Navegación Desktop (Se oculta en celulares) */}
+          {/* Navegación Desktop */}
           <nav className="hidden md:flex gap-10 font-medium text-sm text-gray-400">
             <a href="#clinica" className="hover:text-white transition-colors">
               Gestión Clínica
@@ -42,12 +41,15 @@ export default function LandingPage() {
             <a href="#psieduca" className="hover:text-white transition-colors">
               Portal PsiEduca
             </a>
-            <a href="#comunidad" className="hover:text-white transition-colors">
-              Comunidad
-            </a>
+            <Link
+              href="/comunidad"
+              className="hover:text-white transition-colors text-teal-400"
+            >
+              Comunidad ConnectedMind
+            </Link>
           </nav>
 
-          {/* Botones Desktop (Se ocultan en celulares) */}
+          {/* Botones Desktop */}
           <div className="hidden md:flex items-center gap-5">
             <Link
               href="/login-personal"
@@ -112,13 +114,13 @@ export default function LandingPage() {
                 >
                   Portal PsiEduca
                 </a>
-                <a
-                  href="#comunidad"
+                <Link
+                  href="/comunidad"
                   onClick={() => setMenuAbierto(false)}
-                  className="hover:text-white"
+                  className="hover:text-white text-teal-400"
                 >
-                  Comunidad
-                </a>
+                  Comunidad ConnectedMind
+                </Link>
               </nav>
               <div className="h-px bg-white/10 w-full"></div>
               <div className="flex flex-col gap-4">
@@ -170,7 +172,7 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
             <Link
-              href="/registro"
+              href="/comunidad"
               className="w-full sm:w-auto bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-black py-4 px-10 rounded-2xl transition-all shadow-[0_0_30px_rgba(99,102,241,0.3)] text-lg flex items-center justify-center gap-2"
             >
               Únete a la Comunidad
