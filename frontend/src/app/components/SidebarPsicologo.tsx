@@ -7,6 +7,7 @@ import BotonCerrarSesion from "./BotonCerrarSesion";
 export default function SidebarPsicologo() {
   const pathname = usePathname();
 
+  // Hemos restaurado TODOS los botones basándonos en tus carpetas reales
   const menuItems = [
     { name: "Mi Panel", href: "/dashboard-psicologo", icon: "🏠" },
     { name: "Agenda", href: "/dashboard-psicologo/agenda", icon: "📅" },
@@ -15,6 +16,18 @@ export default function SidebarPsicologo() {
       href: "/dashboard-psicologo/pacientes",
       icon: "👥",
     },
+    {
+      name: "Historias Clínicas",
+      href: "/dashboard-psicologo/historias",
+      icon: "📋",
+    },
+    { name: "Mis Notas", href: "/dashboard-psicologo/notas", icon: "📝" },
+    {
+      name: "Crear Taller",
+      href: "/dashboard-psicologo/crear-taller",
+      icon: "🎓",
+    },
+    { name: "Mi Perfil", href: "/dashboard-psicologo/perfil", icon: "⚙️" },
     {
       name: "Suscripción",
       href: "/dashboard-psicologo/suscripcion",
@@ -33,7 +46,8 @@ export default function SidebarPsicologo() {
         </span>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+      {/* Menú desplazable para que entren todos los botones sin problemas */}
+      <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -53,7 +67,7 @@ export default function SidebarPsicologo() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-slate-100">
+      <div className="p-4 border-t border-slate-100 shrink-0">
         <BotonCerrarSesion />
       </div>
     </aside>
