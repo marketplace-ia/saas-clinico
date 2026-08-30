@@ -4,63 +4,105 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { useRouter } from "next/navigation";
 
+// Interfaz para los doctores que vienen de la BD
+interface Doctor {
+  psicologo_id: string;
+  nombre_clinica: string;
+}
+
 export default function AgendarCitaPage() {
   const router = useRouter();
 
   const [paso, setPaso] = useState(1);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState({ tipo: "", texto: "" });
-  const [correoPaciente, setCorreoPaciente] = useState("");
+  const [pacienteInfo, setPacienteInfo] = useState({
+    id: "",
+    email: "",
+    nombre: "Paciente Web",
+  });
 
-  // NUEVO: Estado para guardar las horas que ya están reservadas en la base de datos
   const [horasOcupadas, setHorasOcupadas] = useState<string[]>([]);
 
-  // Estado del formulario
+  // AHORA ES UN ESTADO DINÁMICO (Empieza vacío y se llena desde la Base de Datos)
+  const [doctoresDisponibles, setDoctoresDisponibles] = useState<Doctor[]>([]);
+
   const [cita, setCita] = useState({
-    psicologo: "",
+    psicologo_id: "",
     fecha: "",
     hora: "",
     motivo: "",
   });
 
-  // 1. Obtener el correo del paciente logueado
+  // 1. Obtener datos del paciente Y la lista dinámica de doctores
   useEffect(() => {
-    const obtenerUsuario = async () => {
+    const cargarDatosIniciales = async () => {
+      // Obtener el paciente actual
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user?.email) {
-        setCorreoPaciente(user.email);
+      if (user) {
+        setPacienteInfo({
+          id: user.id,
+          email: user.email || "",
+          nombre: user.email
+            ? user.email.split("@")[0].charAt(0).toUpperCase() +
+              user.email.split("@")[0].slice(1)
+            : "Paciente Web",
+        });
+      }
+
+      // 🚀 MAGIA SAAS: Traer todos los doctores de la base de datos automáticamente
+      const { data: clinicas, error } = await supabase
+        .from("configuracion_clinica")
+        .select("psicologo_id, nombre_clinica");
+
+      if (clinicas && !error) {
+        setDoctoresDisponibles(clinicas);
       }
     };
-    obtenerUsuario();
+
+    cargarDatosIniciales();
   }, []);
 
-  // 2. EL RADAR DE DISPONIBILIDAD: Se activa cada vez que el paciente cambia la fecha o el doctor
+  const convertirHoraAFormatoDB = (hora12h: string) => {
+    const [time, modifier] = hora12h.split(" ");
+    const [initialHours, minutes] = time.split(":");
+
+    let hours = initialHours;
+    if (hours === "12") hours = "00";
+    if (modifier === "PM") hours = (parseInt(hours, 10) + 12).toString();
+
+    return `${hours.padStart(2, "0")}:${minutes}:00`;
+  };
+
   useEffect(() => {
     const buscarHorasOcupadas = async () => {
-      if (!cita.fecha) {
+      if (!cita.fecha || !cita.psicologo_id) {
         setHorasOcupadas([]);
         return;
       }
 
-      // Si no eligió doctor, usamos el asignado por defecto para buscar
-      const psicologoABuscar = cita.psicologo || "Dr. Asignado Automáticamente";
-
       try {
         const { data, error } = await supabase
           .from("citas")
-          .select("hora")
+          .select("hora_inicio")
           .eq("fecha", cita.fecha)
-          .eq("psicologo", psicologoABuscar);
+          .eq("psicologo_id", cita.psicologo_id)
+          .neq("estado", "Cancelada");
 
         if (error) throw error;
 
         if (data) {
-          const horasTomadas = data.map((c) => c.hora);
+          const horasTomadas = data.map((c) => {
+            const h = parseInt(c.hora_inicio.split(":")[0]);
+            const ampm = h >= 12 ? "PM" : "AM";
+            const h12 = h % 12 || 12;
+            return `${h12.toString().padStart(2, "0")}:${c.hora_inicio.split(":")[1]} ${ampm}`;
+          });
+
           setHorasOcupadas(horasTomadas);
 
-          // Prevención de errores: Si la hora que ya tenía seleccionada resulta estar ocupada en este nuevo día, se la quitamos
           if (horasTomadas.includes(cita.hora)) {
             setCita((prev) => ({ ...prev, hora: "" }));
           }
@@ -71,7 +113,7 @@ export default function AgendarCitaPage() {
     };
 
     buscarHorasOcupadas();
-  }, [cita.fecha, cita.psicologo, cita.hora]);
+  }, [cita.fecha, cita.psicologo_id, cita.hora]);
 
   const horasDisponibles = [
     "09:00 AM",
@@ -91,25 +133,32 @@ export default function AgendarCitaPage() {
     setCargando(true);
     setMensaje({ tipo: "", texto: "" });
 
-    if (!correoPaciente) {
+    if (!pacienteInfo.id) {
       setMensaje({
         tipo: "error",
-        texto:
-          "Error: No hemos detectado tu sesión de paciente. Intenta recargar la página.",
+        texto: "Error: No hemos detectado tu sesión de paciente.",
       });
       setCargando(false);
       return;
     }
 
     try {
+      const horaInicioDB = convertirHoraAFormatoDB(cita.hora);
+
+      const horaInicioObj = new Date(`2000-01-01T${horaInicioDB}`);
+      horaInicioObj.setHours(horaInicioObj.getHours() + 1);
+      const horaFinDB = horaInicioObj.toTimeString().split(" ")[0];
+
       const { error } = await supabase.from("citas").insert([
         {
-          paciente_correo: correoPaciente,
-          psicologo: cita.psicologo || "Dr. Asignado Automáticamente",
+          psicologo_id: cita.psicologo_id,
+          paciente_id: pacienteInfo.id,
+          nombre_paciente: pacienteInfo.nombre,
           fecha: cita.fecha,
-          hora: cita.hora,
-          motivo: cita.motivo,
-          estado: "confirmada",
+          hora_inicio: horaInicioDB,
+          hora_fin: horaFinDB,
+          tipo: "Terapia Individual",
+          estado: "Pendiente",
         },
       ]);
 
@@ -117,7 +166,8 @@ export default function AgendarCitaPage() {
 
       setMensaje({
         tipo: "exito",
-        texto: "¡Cita confirmada exitosamente! Preparando tu sala...",
+        texto:
+          "¡Cita solicitada exitosamente! El especialista debe confirmarla.",
       });
 
       setTimeout(() => {
@@ -134,6 +184,11 @@ export default function AgendarCitaPage() {
       setCargando(false);
     }
   };
+
+  // Obtener el nombre del doctor seleccionado para el resumen (Paso 3)
+  const doctorSeleccionado = doctoresDisponibles.find(
+    (d) => d.psicologo_id === cita.psicologo_id,
+  );
 
   return (
     <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-4xl mx-auto">
@@ -185,29 +240,31 @@ export default function AgendarCitaPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-6">
             Detalles de la Consulta
           </h2>
-
           <div className="space-y-6">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Especialista
               </label>
               <select
-                value={cita.psicologo}
+                value={cita.psicologo_id}
                 onChange={(e) =>
-                  setCita({ ...cita, psicologo: e.target.value })
+                  setCita({ ...cita, psicologo_id: e.target.value })
                 }
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700"
               >
-                <option value="">Cualquier especialista disponible</option>
-                <option value="Dra. Camila Rojas">
-                  Dra. Camila Rojas - Ansiedad y Estrés
-                </option>
-                <option value="Dr. Esteban">
-                  Dr. Esteban - Terapia Cognitivo Conductual
-                </option>
+                <option value="">Selecciona un especialista</option>
+                {doctoresDisponibles.map((doc) => (
+                  <option key={doc.psicologo_id} value={doc.psicologo_id}>
+                    {doc.nombre_clinica}
+                  </option>
+                ))}
               </select>
+              {doctoresDisponibles.length === 0 && (
+                <p className="text-xs text-amber-600 mt-2 font-medium">
+                  No hay especialistas configurados aún en la plataforma.
+                </p>
+              )}
             </div>
-
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Motivo de consulta (Breve)
@@ -220,10 +277,9 @@ export default function AgendarCitaPage() {
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 resize-none"
               ></textarea>
             </div>
-
             <button
               onClick={() => setPaso(2)}
-              disabled={cita.motivo.length < 5}
+              disabled={cita.motivo.length < 5 || !cita.psicologo_id}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-bold py-4 rounded-xl transition shadow-md"
             >
               Continuar a Fecha y Hora
@@ -246,7 +302,6 @@ export default function AgendarCitaPage() {
               ← Volver
             </button>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
@@ -260,7 +315,6 @@ export default function AgendarCitaPage() {
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700"
               />
             </div>
-
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Horas Disponibles
@@ -268,7 +322,6 @@ export default function AgendarCitaPage() {
               <div className="grid grid-cols-2 gap-3">
                 {horasDisponibles.map((hora) => {
                   const estaOcupada = horasOcupadas.includes(hora);
-
                   return (
                     <button
                       key={hora}
@@ -276,10 +329,10 @@ export default function AgendarCitaPage() {
                       disabled={estaOcupada}
                       className={`py-3 px-2 rounded-xl font-bold text-sm transition-all border flex flex-col items-center justify-center ${
                         estaOcupada
-                          ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-70" // Estilo bloqueado
+                          ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-70"
                           : cita.hora === hora
-                            ? "bg-blue-600 border-blue-600 text-white shadow-md transform scale-105" // Estilo seleccionado
-                            : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50" // Estilo normal
+                            ? "bg-blue-600 border-blue-600 text-white shadow-md transform scale-105"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50"
                       }`}
                     >
                       <span>{hora}</span>
@@ -294,7 +347,6 @@ export default function AgendarCitaPage() {
               </div>
             </div>
           </div>
-
           <div className="mt-8">
             <button
               onClick={() => setPaso(3)}
@@ -314,16 +366,14 @@ export default function AgendarCitaPage() {
           className="bg-gray-900 border border-gray-800 rounded-3xl p-8 shadow-2xl text-white animate-in slide-in-from-right-4 relative overflow-hidden"
         >
           <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-500 opacity-20 rounded-full blur-3xl"></div>
-
           <h2 className="text-2xl font-black mb-6 relative z-10">
             Resumen de tu Cita
           </h2>
-
           <div className="space-y-6 relative z-10 bg-white/10 p-6 rounded-2xl backdrop-blur-md border border-white/10">
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
               <span className="text-gray-400 font-medium">Especialista</span>
-              <span className="font-bold">
-                {cita.psicologo || "Dr. Asignado Automáticamente"}
+              <span className="font-bold text-right pl-4">
+                {doctorSeleccionado?.nombre_clinica || "No especificado"}
               </span>
             </div>
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
@@ -339,7 +389,6 @@ export default function AgendarCitaPage() {
               <span className="font-black text-xl text-green-400">$50.00</span>
             </div>
           </div>
-
           <div className="flex gap-4 mt-8 relative z-10">
             <button
               type="button"
