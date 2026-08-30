@@ -19,17 +19,17 @@ const horasDelDia = Array.from({ length: 11 }, (_, i) => {
   return `${hora.toString().padStart(2, "0")}:00`;
 });
 
-// Función pura externa (para no ensuciar el useEffect)
+// Función pura externa
 const obtenerFechaString = (fecha: Date) => {
   return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
 };
 
 export default function AgendaPage() {
-  const [fechaActual] = useState(new Date());
+  // AHORA PERMITIMOS CAMBIAR LA FECHA (setFechaActual)
+  const [fechaActual, setFechaActual] = useState(new Date());
   const [citas, setCitas] = useState<Cita[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  // "Gatillo" para recargar las citas de forma segura sin romper las reglas de React
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Estados para el Modal
@@ -42,9 +42,9 @@ export default function AgendaPage() {
     estado: "Confirmada" as "Confirmada" | "Pendiente" | "Cancelada",
   });
 
-  // CARGA DE CITAS (Estructura perfecta para React)
+  // CARGA DE CITAS (Se dispara automáticamente cada vez que cambias la fecha)
   useEffect(() => {
-    let montado = true; // Evita errores si el componente se desmonta rápido
+    let montado = true;
 
     const fetchCitas = async () => {
       setCargando(true);
@@ -54,13 +54,13 @@ export default function AgendaPage() {
         } = await supabase.auth.getSession();
         if (!session) return;
 
-        const fechaHoy = obtenerFechaString(fechaActual);
+        const fechaBuscada = obtenerFechaString(fechaActual);
 
         const { data, error } = await supabase
           .from("citas")
           .select("*")
           .eq("psicologo_id", session.user.id)
-          .eq("fecha", fechaHoy);
+          .eq("fecha", fechaBuscada); // Filtramos por el día exacto que estás viendo
 
         if (error) throw error;
 
@@ -85,9 +85,30 @@ export default function AgendaPage() {
     fetchCitas();
 
     return () => {
-      montado = false; // Limpieza del efecto
+      montado = false;
     };
-  }, [fechaActual, refreshKey]); // Dependencias perfectas: solo se ejecuta si cambia la fecha o el gatillo
+  }, [fechaActual, refreshKey]); // Depende de fechaActual: si la cambias, busca de nuevo
+
+  // FUNCIONES DE NAVEGACIÓN DEL CALENDARIO
+  const irAlDiaAnterior = () => {
+    setFechaActual((prev) => {
+      const nuevaFecha = new Date(prev);
+      nuevaFecha.setDate(nuevaFecha.getDate() - 1);
+      return nuevaFecha;
+    });
+  };
+
+  const irAlDiaSiguiente = () => {
+    setFechaActual((prev) => {
+      const nuevaFecha = new Date(prev);
+      nuevaFecha.setDate(nuevaFecha.getDate() + 1);
+      return nuevaFecha;
+    });
+  };
+
+  const irAHoy = () => {
+    setFechaActual(new Date());
+  };
 
   // Función para Guardar una Cita Nueva
   const handleGuardarCita = async (e: React.FormEvent) => {
@@ -119,15 +140,12 @@ export default function AgendaPage() {
 
       if (error) throw error;
 
-      // Cerrar modal y limpiar
       setModalAbierto(false);
       setFormData({
         paciente: "",
         tipo: "Terapia Individual",
         estado: "Confirmada",
       });
-
-      // Jalar el gatillo para que el useEffect se vuelva a ejecutar y actualice la pantalla
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error("Error guardando cita:", error);
@@ -150,7 +168,12 @@ export default function AgendaPage() {
     weekday: "long",
     day: "numeric",
     month: "long",
+    year: "numeric",
   });
+
+  // Comprobar si la fecha actual mostrada es realmente hoy
+  const esHoy =
+    obtenerFechaString(fechaActual) === obtenerFechaString(new Date());
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 h-full flex flex-col relative">
@@ -158,13 +181,22 @@ export default function AgendaPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 shrink-0">
         <div>
           <h1 className="text-3xl font-black text-slate-900 mb-2">Mi Agenda</h1>
-          <p className="text-slate-500 text-sm md:text-base capitalize">
+          <p className="text-slate-500 text-sm md:text-base capitalize flex items-center gap-2">
             {fechaFormateada}
+            {esHoy && (
+              <span className="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
+                Hoy
+              </span>
+            )}
           </p>
         </div>
 
+        {/* BOTONES DE NAVEGACIÓN ACTIVADOS */}
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <button className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600 shadow-sm">
+          <button
+            onClick={irAlDiaAnterior}
+            className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-colors text-slate-600 shadow-sm"
+          >
             <svg
               className="w-5 h-5"
               fill="none"
@@ -179,10 +211,18 @@ export default function AgendaPage() {
               />
             </svg>
           </button>
-          <button className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-colors text-sm shadow-sm">
+
+          <button
+            onClick={irAHoy}
+            className={`px-4 py-2 border rounded-xl font-bold transition-colors text-sm shadow-sm ${esHoy ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+          >
             Hoy
           </button>
-          <button className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600 shadow-sm">
+
+          <button
+            onClick={irAlDiaSiguiente}
+            className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-colors text-slate-600 shadow-sm"
+          >
             <svg
               className="w-5 h-5"
               fill="none"
