@@ -27,7 +27,7 @@ export default function PsicologoLayout({
           return;
         }
 
-        // 2. Buscar el rol del usuario (Usamos maybeSingle para que no explote si la cuenta es antigua)
+        // 2. Buscar el rol del usuario
         const { data: rolData, error } = await supabase
           .from("roles_usuarios")
           .select("rol")
@@ -59,7 +59,7 @@ export default function PsicologoLayout({
     router.push("/");
   };
 
-  // PANTALLA DE CARGA (El guardia verificando)
+  // PANTALLA DE CARGA
   if (!autorizado) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
@@ -71,7 +71,7 @@ export default function PsicologoLayout({
     );
   }
 
-  // PANEL DEL PSICÓLOGO (Aprobado)
+  // PANEL DEL PSICÓLOGO
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
       {/* BARRA LATERAL OSCURA (Exclusiva de profesionales) */}
@@ -114,6 +114,13 @@ export default function PsicologoLayout({
           </Link>
 
           <div className="pt-4 mt-4 border-t border-slate-800"></div>
+
+          <Link
+            href="/dashboard-psicologo/suscripcion"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${pathname?.includes("/suscripcion") ? "bg-indigo-600 text-white shadow-md" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}
+          >
+            💳 Mi Suscripción
+          </Link>
 
           <Link
             href="/dashboard-psicologo/perfil"
