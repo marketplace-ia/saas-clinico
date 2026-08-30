@@ -1,140 +1,216 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../../../../lib/supabase";
-import Link from "next/link";
+import { useState } from "react";
 
+// Interfaces para TypeScript
 interface Cita {
   id: string;
-  paciente_correo: string;
-  fecha: string;
-  hora: string;
-  motivo: string;
-  estado: string;
+  paciente: string;
+  horaInicio: string; // Formato HH:MM
+  horaFin: string;
+  tipo: string;
+  estado: "Confirmada" | "Pendiente" | "Cancelada";
 }
 
-export default function AgendaClinicaPage() {
-  const [citas, setCitas] = useState<Cita[]>([]);
-  const [cargando, setCargando] = useState(true);
+// Datos simulados (Mock Data) para visualizar la agenda
+const citasSimuladas: Cita[] = [
+  {
+    id: "1",
+    paciente: "Carlos Mendoza",
+    horaInicio: "09:00",
+    horaFin: "10:00",
+    tipo: "Terapia Individual",
+    estado: "Confirmada",
+  },
+  {
+    id: "2",
+    paciente: "Ana Lucía Ortiz",
+    horaInicio: "11:30",
+    horaFin: "12:30",
+    tipo: "Seguimiento",
+    estado: "Pendiente",
+  },
+  {
+    id: "3",
+    paciente: "Javier Silva",
+    horaInicio: "15:00",
+    horaFin: "16:00",
+    tipo: "Evaluación Inicial",
+    estado: "Confirmada",
+  },
+];
 
-  useEffect(() => {
-    const obtenerCitas = async () => {
-      try {
-        // Traemos todas las citas ordenadas por fecha
-        const { data, error } = await supabase
-          .from("citas")
-          .select("*")
-          .order("fecha", { ascending: true });
+// Generador de horas para la cuadrícula (8 AM a 6 PM)
+const horasDelDia = Array.from({ length: 11 }, (_, i) => {
+  const hora = i + 8;
+  return `${hora.toString().padStart(2, "0")}:00`;
+});
 
-        if (error) throw error;
-        if (data) setCitas(data);
-      } catch (error) {
-        console.error("Error al cargar la agenda:", error);
-      } finally {
-        setCargando(false);
-      }
-    };
+export default function AgendaPage() {
+  const [fechaActual] = useState(new Date("2026-08-29T11:11:17")); // Fecha base de simulación
+  const [citas] = useState<Cita[]>(citasSimuladas);
 
-    obtenerCitas();
-  }, []);
+  // Función para encontrar si hay una cita en una hora específica
+  const obtenerCitaEnHora = (horaBase: string) => {
+    return citas.find((c) => c.horaInicio === horaBase);
+  };
+
+  // Formatear fecha para el encabezado (Ej: "Sábado, 29 de Agosto")
+  const fechaFormateada = fechaActual.toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 
   return (
-    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-6xl mx-auto">
-      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 h-full flex flex-col">
+      {/* ENCABEZADO DE LA AGENDA */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 shrink-0">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 mb-2">
-            Agenda Clínica
-          </h1>
-          <p className="text-gray-500">
-            Listado completo de todas tus sesiones programadas.
+          <h1 className="text-3xl font-black text-slate-900 mb-2">Mi Agenda</h1>
+          <p className="text-slate-500 text-sm md:text-base capitalize">
+            {fechaFormateada}
           </p>
         </div>
-        <Link
-          href="/sala-virtual"
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center justify-center gap-2"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-            ></path>
-          </svg>
-          Ir a Sala Virtual
-        </Link>
+
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+          <button className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-colors text-sm">
+            Hoy
+          </button>
+          <button className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+
+          <button className="ml-auto md:ml-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-md transition-colors flex items-center gap-2 text-sm">
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Bloquear Horario
+          </button>
+        </div>
       </div>
 
-      {cargando ? (
-        <div className="text-center py-20">
-          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 font-bold">Cargando base de datos...</p>
+      {/* CONTENEDOR DEL CALENDARIO */}
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm flex-1 overflow-hidden flex flex-col">
+        {/* Cabecera del día */}
+        <div className="bg-slate-50 border-b border-slate-200 p-4 text-center shrink-0">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+            Vista Diaria
+          </span>
         </div>
-      ) : citas.length === 0 ? (
-        <div className="bg-white border border-dashed border-gray-300 rounded-4xl p-16 text-center shadow-sm">
-          <div className="text-6xl mb-4">🗓️</div>
-          <h2 className="text-2xl font-black text-gray-900 mb-2">
-            Agenda Vacía
-          </h2>
-          <p className="text-gray-500 max-w-md mx-auto">
-            No hay citas programadas en el sistema en este momento.
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white border border-gray-100 rounded-4xl p-8 shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-100 text-gray-400 text-xs uppercase tracking-wider">
-                  <th className="pb-4 font-bold">Fecha</th>
-                  <th className="pb-4 font-bold">Hora</th>
-                  <th className="pb-4 font-bold">Paciente</th>
-                  <th className="pb-4 font-bold">Motivo Registrado</th>
-                  <th className="pb-4 font-bold text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                {citas.map((cita) => {
-                  const nombrePaciente = cita.paciente_correo.split("@")[0];
 
-                  return (
-                    <tr
-                      key={cita.id}
-                      className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+        {/* Cuadrícula de horas (Scrollable) */}
+        <div className="flex-1 overflow-y-auto p-4 relative">
+          {horasDelDia.map((hora) => {
+            const cita = obtenerCitaEnHora(hora);
+
+            return (
+              // CORRECCIÓN TAILWIND AQUÍ (min-h-20)
+              <div key={hora} className="flex min-h-20 group">
+                {/* Columna de la Hora */}
+                <div className="w-20 pr-4 text-right shrink-0 relative -top-3">
+                  <span className="text-xs font-bold text-slate-400">
+                    {hora}
+                  </span>
+                </div>
+
+                {/* Línea divisoria y Espacio de la Cita */}
+                <div className="flex-1 border-t border-slate-100 relative p-1">
+                  {/* Tarjeta de Cita (Si existe) */}
+                  {cita ? (
+                    <div
+                      className={`absolute top-1 left-1 right-1 bottom-1 p-3 rounded-xl border ${
+                        cita.estado === "Confirmada"
+                          ? "bg-indigo-50 border-indigo-200 shadow-[inset_4px_0_0_0_#4F46E5]"
+                          : "bg-amber-50 border-amber-200 shadow-[inset_4px_0_0_0_#F59E0B]"
+                      } hover:shadow-md transition-shadow cursor-pointer z-10 flex flex-col justify-center`}
                     >
-                      <td className="py-5 font-black text-gray-900">
-                        {cita.fecha}
-                      </td>
-                      <td className="py-5 font-bold text-blue-600">
-                        {cita.hora}
-                      </td>
-                      <td className="py-5 font-bold text-gray-700 capitalize">
-                        {nombrePaciente}
-                      </td>
-                      <td className="py-5 text-gray-500 italic max-w-xs truncate">
-                        &quot;{cita.motivo}&quot;
-                      </td>
-                      <td className="py-5 text-right">
-                        <Link
-                          href="/dashboard-psicologo/pacientes"
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg transition text-xs"
+                      <div className="flex justify-between items-start">
+                        <h4
+                          className={`font-black text-sm ${cita.estado === "Confirmada" ? "text-indigo-900" : "text-amber-900"}`}
                         >
-                          Ver Historial
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          {cita.paciente}
+                        </h4>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            cita.estado === "Confirmada"
+                              ? "bg-indigo-100 text-indigo-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {cita.estado}
+                        </span>
+                      </div>
+                      <p
+                        className={`text-xs mt-1 font-medium ${cita.estado === "Confirmada" ? "text-indigo-600/80" : "text-amber-600/80"}`}
+                      >
+                        {cita.horaInicio} - {cita.horaFin} • {cita.tipo}
+                      </p>
+                    </div>
+                  ) : (
+                    /* Espacio vacío interactivo para agregar cita */
+                    <div className="w-full h-full rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <span className="text-xs font-bold text-indigo-600 flex items-center gap-1">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        Agendar aquí
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
     </div>
   );
 }
