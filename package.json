@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "@supabase/ssr": "^0.12.4"
+    "@stripe/stripe-js": "^9.14.0",
+    "@supabase/ssr": "^0.12.4",
+    "stripe": "^22.6.0"
   }
 }
