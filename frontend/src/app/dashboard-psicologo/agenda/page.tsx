@@ -50,7 +50,6 @@ export default function AgendaPage() {
     }
   }, []);
 
-  // CORRECCIÓN 1: Envolvemos la llamada en una función asíncrona interna
   useEffect(() => {
     const inicializarDatos = async () => {
       await cargarCitas();
@@ -63,11 +62,13 @@ export default function AgendaPage() {
     setGuardando(true);
 
     try {
+      // 1. Obtenemos la sesión actual (que contiene el token de Google si se conectó)
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return;
 
+      // 2. Guardamos la cita en nuestra base de datos de Clinesfera
       const { error } = await supabase.from("citas").insert([
         {
           psicologo_id: session.user.id,
@@ -82,6 +83,44 @@ export default function AgendaPage() {
 
       if (error) throw error;
 
+      // 3. ¡LA MAGIA! Si tenemos el token de Google, enviamos la cita al Calendario
+      const googleToken = session.provider_token;
+      if (googleToken) {
+        try {
+          const eventoGoogle = {
+            summary: `Cita: ${nuevaCita.nombre_paciente}`,
+            description: `Modalidad: ${nuevaCita.modalidad} - Agendado desde Clinesfera`,
+            start: {
+              dateTime: `${nuevaCita.fecha}T${nuevaCita.hora_inicio}:00`,
+              timeZone: "America/Guayaquil", // Zona horaria de Ecuador
+            },
+            end: {
+              dateTime: `${nuevaCita.fecha}T${nuevaCita.hora_fin}:00`,
+              timeZone: "America/Guayaquil",
+            },
+          };
+
+          await fetch(
+            "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${googleToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(eventoGoogle),
+            },
+          );
+          console.log("¡Cita sincronizada con Google Calendar!");
+        } catch (err) {
+          console.error(
+            "No se pudo sincronizar con Google (quizás el token expiró):",
+            err,
+          );
+        }
+      }
+
+      // 4. Limpiamos y recargamos la vista
       setNuevaCita({
         nombre_paciente: "",
         fecha: "",
@@ -153,7 +192,6 @@ export default function AgendaPage() {
           <h3 className="text-xl font-bold text-slate-700 mb-2">
             Tu agenda está libre
           </h3>
-          {/* CORRECCIÓN 2: Usamos &quot; en lugar de comillas dobles */}
           <p className="text-slate-500 max-w-sm">
             No tienes citas programadas. Haz clic en &quot;Nueva Cita&quot; para
             empezar a agendar.
