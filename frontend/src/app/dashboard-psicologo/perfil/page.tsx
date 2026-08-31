@@ -1,7 +1,6 @@
 "use client";
 
-// 1. Corregido: Quitamos useEffect porque no lo necesitamos aquí
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../../../lib/supabase";
 
 export default function PerfilPage() {
@@ -13,11 +12,25 @@ export default function PerfilPage() {
   const [mision, setMision] = useState("hola");
 
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
+  const [conectadoGoogle, setConectadoGoogle] = useState(false);
+
+  useEffect(() => {
+    const verificarConexion = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        // Verificamos si el usuario inició sesión con Google
+        const esGoogle = session.user.app_metadata?.provider === "google";
+        setConectadoGoogle(esGoogle);
+      }
+    };
+    verificarConexion();
+  }, []);
 
   const conectarGoogleCalendar = async () => {
     setCargandoGoogle(true);
     try {
-      // 2. Corregido: Solo extraemos 'error' y quitamos 'data'
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -100,10 +113,6 @@ export default function PerfilPage() {
                 className="px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 font-mono text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
               />
             </div>
-            <p className="text-xs text-slate-500 mt-3 font-medium">
-              Este color se usará en los botones y detalles del portal de tus
-              pacientes.
-            </p>
           </div>
         </div>
 
@@ -143,8 +152,7 @@ export default function PerfilPage() {
           </h3>
           <p className="text-slate-500 text-sm mb-6 max-w-2xl font-medium">
             Conecta tu cuenta de Google para sincronizar tus citas
-            automáticamente con tu calendario personal. (Se requerirá
-            autorización específica para Google Calendar).
+            automáticamente con tu calendario personal.
           </p>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100">
@@ -182,10 +190,18 @@ export default function PerfilPage() {
             <button
               type="button"
               onClick={conectarGoogleCalendar}
-              disabled={cargandoGoogle}
-              className="w-full sm:w-auto px-6 py-2.5 bg-white border-2 border-slate-200 hover:border-indigo-600 hover:text-indigo-600 text-slate-700 font-bold rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center justify-center"
+              disabled={cargandoGoogle || conectadoGoogle}
+              className={`w-full sm:w-auto px-6 py-2.5 font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 ${
+                conectadoGoogle
+                  ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-200 cursor-default"
+                  : "bg-white border-2 border-slate-200 hover:border-indigo-600 hover:text-indigo-600 text-slate-700"
+              }`}
             >
-              {cargandoGoogle ? "Conectando..." : "Conectar Calendario"}
+              {cargandoGoogle
+                ? "Conectando..."
+                : conectadoGoogle
+                  ? "✅ Conectado"
+                  : "Conectar Calendario"}
             </button>
           </div>
         </div>
