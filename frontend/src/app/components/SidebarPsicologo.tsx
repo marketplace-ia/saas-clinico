@@ -7,46 +7,27 @@ import BotonCerrarSesion from "./BotonCerrarSesion";
 export default function SidebarPsicologo() {
   const pathname = usePathname();
 
-  // Hemos restaurado TODOS los botones basándonos en tus carpetas reales
   const menuItems = [
     { name: "Mi Panel", href: "/dashboard-psicologo", icon: "🏠" },
     { name: "Agenda", href: "/dashboard-psicologo/agenda", icon: "📅" },
-    {
-      name: "Mis Pacientes",
-      href: "/dashboard-psicologo/pacientes",
-      icon: "👥",
-    },
-    {
-      name: "Historias Clínicas",
-      href: "/dashboard-psicologo/historias",
-      icon: "📋",
-    },
+    { name: "Mis Pacientes", href: "/dashboard-psicologo/pacientes", icon: "👥" },
+    { name: "Historias Clínicas", href: "/dashboard-psicologo/historias", icon: "📋" },
     { name: "Mis Notas", href: "/dashboard-psicologo/notas", icon: "📝" },
-    {
-      name: "Crear Taller",
-      href: "/dashboard-psicologo/crear-taller",
-      icon: "🎓",
-    },
+    { name: "Crear Taller", href: "/dashboard-psicologo/crear-taller", icon: "🎓" },
     { name: "Mi Perfil", href: "/dashboard-psicologo/perfil", icon: "⚙️" },
-    {
-      name: "Suscripción",
-      href: "/dashboard-psicologo/suscripcion",
-      icon: "💳",
-    },
+    { name: "Suscripción", href: "/dashboard-psicologo/suscripcion", icon: "💳" },
   ];
 
   return (
     <aside className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col shadow-sm">
       <div className="p-6 border-b border-slate-100 flex items-center gap-3">
         <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-xl shadow-md">
-          L
+          C
         </div>
-        <span className="text-xl font-black text-slate-900 tracking-tight">
-          Lumina
-        </span>
+        {/* AQUÍ NACE NUESTRA NUEVA MARCA */}
+        <span className="text-xl font-black text-slate-900 tracking-tight">Clinesfera</span>
       </div>
 
-      {/* Menú desplazable para que entren todos los botones sin problemas */}
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
