@@ -1,33 +1,73 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
 
 export default function PerfilPage() {
+  // Estados de la marca
   const [nombreComercial, setNombreComercial] = useState(
-    "Consultorio Lic Esteban",
+    "Consultorio Psicológico",
   );
-  const [eslogan, setEslogan] = useState("PsicoEsteban");
+  const [eslogan, setEslogan] = useState("");
   const [colorMarca, setColorMarca] = useState("#4F46E5");
-  const [mision, setMision] = useState("hola");
+  const [mision, setMision] = useState("");
 
+  // Estados de carga y conexión
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
   const [conectadoGoogle, setConectadoGoogle] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [cargandoPerfil, setCargandoPerfil] = useState(true);
+
+  // Cargar perfil al entrar
+  const cargarPerfil = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from("perfil_psicologo")
+        .select("*")
+        .eq("psicologo_id", session.user.id)
+        .maybeSingle(); // Usamos maybeSingle para que no arroje error si aún no existe
+
+      if (error) throw error;
+
+      if (data) {
+        setNombreComercial(data.nombre_comercial);
+        setEslogan(data.eslogan);
+        setColorMarca(data.color_marca);
+        setMision(data.mision);
+      }
+    } catch (err) {
+      console.error("Error cargando perfil:", err);
+    } finally {
+      setCargandoPerfil(false);
+    }
+  }, []);
 
   useEffect(() => {
+    // CORRECCIÓN 1: Envolvemos cargarPerfil en una función asíncrona
+    const inicializar = async () => {
+      await cargarPerfil();
+    };
+    inicializar();
+
+    // Verificar si está conectado a Google
     const verificarConexion = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session?.user) {
-        // Verificamos si el usuario inició sesión con Google
         const esGoogle = session.user.app_metadata?.provider === "google";
         setConectadoGoogle(esGoogle);
       }
     };
     verificarConexion();
-  }, []);
+  }, [cargarPerfil]);
 
+  // Conectar con Google Calendar
   const conectarGoogleCalendar = async () => {
     setCargandoGoogle(true);
     try {
@@ -43,18 +83,53 @@ export default function PerfilPage() {
         },
       });
       if (error) throw error;
-    } catch (error) {
-      console.error("Error conectando con Google:", error);
+    } catch (err) {
+      console.error("Error conectando con Google:", err);
       alert("Hubo un error al intentar conectar con Google.");
     } finally {
       setCargandoGoogle(false);
     }
   };
 
+  // Función REAL para guardar en la base de datos
   const guardarCambios = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Perfil guardado temporalmente en la vista.");
+    setGuardando(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase.from("perfil_psicologo").upsert(
+        {
+          psicologo_id: session.user.id,
+          nombre_comercial: nombreComercial,
+          eslogan: eslogan,
+          color_marca: colorMarca,
+          mision: mision,
+          actualizado_en: new Date().toISOString(),
+        },
+        { onConflict: "psicologo_id" },
+      );
+
+      if (error) throw error;
+      alert("¡Perfil guardado correctamente! 🚀");
+    } catch (err) {
+      console.error("Error al guardar perfil:", err);
+      alert("Hubo un error al guardar los cambios.");
+    } finally {
+      setGuardando(false);
+    }
   };
+
+  if (cargandoPerfil) {
+    return (
+      <div className="p-8 flex justify-center items-center h-full">
+        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto animate-in fade-in duration-500 h-full">
@@ -71,7 +146,6 @@ export default function PerfilPage() {
           <h2 className="text-xl font-black text-slate-900 mb-6">
             Identidad de la Clínica
           </h2>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
@@ -79,6 +153,7 @@ export default function PerfilPage() {
               </label>
               <input
                 type="text"
+                required
                 value={nombreComercial}
                 onChange={(e) => setNombreComercial(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-900"
@@ -96,22 +171,24 @@ export default function PerfilPage() {
               />
             </div>
           </div>
-
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">
               Color Principal de Marca
             </label>
             <div className="flex items-center gap-4">
               <div
-                className="w-12 h-12 rounded-lg border-2 border-slate-200 shadow-sm"
+                className="w-12 h-12 rounded-lg border-2 border-slate-200 shadow-sm transition-colors"
                 style={{ backgroundColor: colorMarca }}
               ></div>
               <input
-                type="text"
+                type="color"
                 value={colorMarca}
                 onChange={(e) => setColorMarca(e.target.value)}
-                className="px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 font-mono text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                className="h-12 w-16 p-1 rounded-lg border border-slate-200 cursor-pointer"
               />
+              <span className="font-mono text-sm text-slate-500 font-bold uppercase">
+                {colorMarca}
+              </span>
             </div>
           </div>
         </div>
@@ -209,8 +286,12 @@ export default function PerfilPage() {
         <div className="flex justify-end pt-4">
           <button
             type="submit"
-            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all"
+            disabled={guardando}
+            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
           >
+            {guardando && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
             Guardar Cambios
           </button>
         </div>
