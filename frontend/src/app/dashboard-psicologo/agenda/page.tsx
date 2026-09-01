@@ -71,8 +71,13 @@ export default function AgendaPage() {
       let googleId = null;
       const googleToken = session.provider_token;
 
-      // 1. Si tenemos Google conectado, creamos el evento allá primero
-      if (googleToken) {
+      // 1. Validar Token de Google
+      if (!googleToken) {
+        alert(
+          "⚠️ Aviso: La llave de Google expiró o no existe. La cita se guardará SOLO en Clinesfera. Ve a 'Mi Perfil' y vuelve a Conectar el Calendario para refrescar la llave.",
+        );
+      } else {
+        // 2. Intentar guardar en Google
         try {
           const eventoGoogle = {
             summary: `Cita: ${nuevaCita.nombre_paciente}`,
@@ -101,14 +106,19 @@ export default function AgendaPage() {
 
           if (res.ok) {
             const googleData = await res.json();
-            googleId = googleData.id; // Capturamos el ID secreto de Google
+            googleId = googleData.id;
+          } else {
+            console.error("Error de Google:", await res.text());
+            alert(
+              "⚠️ Error al sincronizar con Google. Probablemente tu sesión expiró. Vuelve a conectarlo en Mi Perfil.",
+            );
           }
         } catch (err) {
           console.error("Error con Google Calendar:", err);
         }
       }
 
-      // 2. Guardamos en Supabase (incluyendo el ID de Google si lo obtuvimos)
+      // 3. Guardar en Supabase
       const { error } = await supabase.from("citas").insert([
         {
           psicologo_id: session.user.id,
@@ -141,32 +151,37 @@ export default function AgendaPage() {
     }
   };
 
-  // NUEVA FUNCIÓN: Eliminar Cita de BD y de Google
   const eliminarCita = async (id: string, googleEventId?: string) => {
     if (!confirm("¿Estás seguro de cancelar esta cita?")) return;
 
     try {
-      // 1. Intentamos borrar de Google si tiene ID
       const {
         data: { session },
       } = await supabase.auth.getSession();
       const googleToken = session?.provider_token;
 
       if (googleToken && googleEventId) {
-        await fetch(
+        const res = await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
           {
             method: "DELETE",
             headers: { Authorization: `Bearer ${googleToken}` },
           },
         );
+        if (!res.ok) {
+          console.error(
+            "No se pudo borrar de Google (Token expirado o evento ya no existe).",
+          );
+        }
+      } else if (!googleToken && googleEventId) {
+        alert(
+          "⚠️ Aviso: Borrado en Clinesfera, pero como tu conexión a Google expiró, deberás borrarla manualmente en tu Google Calendar.",
+        );
       }
 
-      // 2. Borramos de Supabase
       const { error } = await supabase.from("citas").delete().eq("id", id);
       if (error) throw error;
 
-      // 3. Recargamos la vista
       cargarCitas();
     } catch (error) {
       console.error("Error eliminando cita:", error);
@@ -240,7 +255,6 @@ export default function AgendaPage() {
               key={cita.id}
               className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 hover:shadow-md transition-shadow group relative"
             >
-              {/* BOTÓN ELIMINAR (Oculto por defecto, aparece al pasar el ratón) */}
               <button
                 onClick={() => eliminarCita(cita.id, cita.google_event_id)}
                 className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 bg-white rounded-full p-1 shadow-sm border border-slate-100"
