@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
+import Link from "next/link";
 
 interface Paciente {
   id: string;
@@ -191,10 +192,11 @@ export default function HistoriasPage() {
               <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center font-black">
-                    {historia.pacientes?.nombre_completo.charAt(0)}
+                    {historia.pacientes?.nombre_completo.charAt(0) || "?"}
                   </div>
                   <h3 className="font-bold text-slate-900 leading-tight">
-                    {historia.pacientes?.nombre_completo}
+                    {historia.pacientes?.nombre_completo ||
+                      "Paciente Desconocido"}
                   </h3>
                 </div>
               </div>
@@ -223,9 +225,26 @@ export default function HistoriasPage() {
                   Actualizado:{" "}
                   {new Date(historia.actualizado_en).toLocaleDateString()}
                 </span>
-                <button className="text-indigo-600 text-sm font-bold hover:underline">
-                  Abrir Expediente
-                </button>
+                {/* AQUI ESTÁ EL BOTÓN CONECTADO POR LINK */}
+                <Link
+                  href={`/dashboard-psicologo/historias/${historia.id}`}
+                  className="text-indigo-600 text-sm font-bold hover:underline flex items-center gap-1"
+                >
+                  Abrir Expediente{" "}
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </Link>
               </div>
             </div>
           ))}
