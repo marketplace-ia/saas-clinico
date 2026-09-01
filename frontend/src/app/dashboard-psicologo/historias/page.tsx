@@ -3,115 +3,116 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
 
+interface Paciente {
+  id: string;
+  nombre_completo: string;
+}
+
 interface Historia {
   id: string;
-  nombre_paciente: string;
-  fecha_nacimiento: string;
+  paciente_id: string;
   motivo_consulta: string;
-  diagnostico: string;
-  evolucion: string;
+  antecedentes: string;
+  evaluacion: string;
+  plan_tratamiento: string;
   actualizado_en: string;
+  pacientes?: {
+    nombre_completo: string;
+  };
 }
 
 export default function HistoriasPage() {
   const [historias, setHistorias] = useState<Historia[]>([]);
+  const [listaPacientes, setListaPacientes] = useState<Paciente[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  // Estados del Modal
   const [modalAbierto, setModalAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [historiaActual, setHistoriaActual] = useState<Partial<Historia>>({
-    nombre_paciente: "",
-    fecha_nacimiento: "",
+
+  const [nuevaHistoria, setNuevaHistoria] = useState({
+    paciente_id: "",
     motivo_consulta: "",
-    diagnostico: "",
-    evolucion: "",
+    antecedentes: "",
+    evaluacion: "",
+    plan_tratamiento: "",
   });
 
-  const cargarHistorias = useCallback(async () => {
+  const cargarDatos = useCallback(async () => {
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      const { data, error } = await supabase
+      // 1. Cargar pacientes para el selector desplegable
+      const { data: dataPacientes } = await supabase
+        .from("pacientes")
+        .select("id, nombre_completo")
+        .eq("psicologo_id", session.user.id)
+        .order("nombre_completo");
+
+      if (dataPacientes) setListaPacientes(dataPacientes);
+
+      // 2. Cargar las historias clínicas y unir el nombre del paciente automáticamente
+      const { data: dataHistorias, error } = await supabase
         .from("historias_clinicas")
-        .select("*")
+        .select(`*, pacientes(nombre_completo)`)
         .eq("psicologo_id", session.user.id)
         .order("actualizado_en", { ascending: false });
 
       if (error) throw error;
-      if (data) setHistorias(data);
+      if (dataHistorias) setHistorias(dataHistorias);
     } catch (error) {
-      console.error("Error cargando historias:", error);
+      console.error("Error cargando datos:", error);
     } finally {
       setCargando(false);
     }
   }, []);
 
   useEffect(() => {
-    const iniciarCarga = async () => {
-      await cargarHistorias();
-    };
-    iniciarCarga();
-  }, [cargarHistorias]);
-
-  const abrirModalNueva = () => {
-    setHistoriaActual({
-      nombre_paciente: "",
-      fecha_nacimiento: "",
-      motivo_consulta: "",
-      diagnostico: "",
-      evolucion: "",
-    });
-    setModalAbierto(true);
-  };
-
-  const abrirModalEditar = (historia: Historia) => {
-    setHistoriaActual(historia);
-    setModalAbierto(true);
-  };
+    const inicializar = async () => await cargarDatos();
+    inicializar();
+  }, [cargarDatos]);
 
   const guardarHistoria = async (e: React.FormEvent) => {
     e.preventDefault();
-    setGuardando(true);
+    if (!nuevaHistoria.paciente_id) {
+      alert("Por favor selecciona un paciente.");
+      return;
+    }
 
+    setGuardando(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      if (historiaActual.id) {
-        await supabase
-          .from("historias_clinicas")
-          .update({
-            nombre_paciente: historiaActual.nombre_paciente,
-            fecha_nacimiento: historiaActual.fecha_nacimiento,
-            motivo_consulta: historiaActual.motivo_consulta,
-            diagnostico: historiaActual.diagnostico,
-            evolucion: historiaActual.evolucion,
-            actualizado_en: new Date().toISOString(),
-          })
-          .eq("id", historiaActual.id);
-      } else {
-        await supabase.from("historias_clinicas").insert([
-          {
-            psicologo_id: session.user.id,
-            nombre_paciente: historiaActual.nombre_paciente,
-            fecha_nacimiento: historiaActual.fecha_nacimiento,
-            motivo_consulta: historiaActual.motivo_consulta,
-            diagnostico: historiaActual.diagnostico,
-            evolucion: historiaActual.evolucion,
-          },
-        ]);
-      }
+      const { error } = await supabase.from("historias_clinicas").insert([
+        {
+          psicologo_id: session.user.id,
+          paciente_id: nuevaHistoria.paciente_id,
+          motivo_consulta: nuevaHistoria.motivo_consulta,
+          antecedentes: nuevaHistoria.antecedentes,
+          evaluacion: nuevaHistoria.evaluacion,
+          plan_tratamiento: nuevaHistoria.plan_tratamiento,
+        },
+      ]);
 
+      if (error) throw error;
+
+      setNuevaHistoria({
+        paciente_id: "",
+        motivo_consulta: "",
+        antecedentes: "",
+        evaluacion: "",
+        plan_tratamiento: "",
+      });
       setModalAbierto(false);
-      cargarHistorias();
+      cargarDatos();
     } catch (error) {
       console.error("Error guardando historia:", error);
+      alert("Hubo un error al guardar el documento.");
     } finally {
       setGuardando(false);
     }
@@ -119,17 +120,18 @@ export default function HistoriasPage() {
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 h-full flex flex-col">
+      {/* CABECERA */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 mb-2">
-            Expedientes Clínicos
+            Historias Clínicas
           </h1>
           <p className="text-slate-500 font-medium">
-            Gestión segura y encriptada de Clinesfera.
+            Documentos legales y evolución terapéutica de tus pacientes.
           </p>
         </div>
         <button
-          onClick={abrirModalNueva}
+          onClick={() => setModalAbierto(true)}
           className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center gap-2"
         >
           <svg
@@ -142,22 +144,23 @@ export default function HistoriasPage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M12 4v16m8-8H4"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
-          Nuevo Expediente
+          Nueva Historia
         </button>
       </div>
 
+      {/* LISTA DE HISTORIAS */}
       {cargando ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
         </div>
       ) : historias.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center bg-white border border-dashed border-slate-300 rounded-3xl p-12 text-center">
-          <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
+          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4 shadow-sm">
             <svg
-              className="w-10 h-10 text-indigo-400"
+              className="w-10 h-10 text-blue-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -166,71 +169,76 @@ export default function HistoriasPage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
               />
             </svg>
           </div>
           <h3 className="text-xl font-bold text-slate-700 mb-2">
-            Sin expedientes activos
+            No hay expedientes clínicos
           </h3>
           <p className="text-slate-500 max-w-sm">
-            Haz clic en &quot;Nuevo Expediente&quot; para registrar la historia
-            de tu primer paciente.
+            Aún no has creado historias clínicas. Haz clic en &quot;Nueva
+            Historia&quot; para abrir el expediente de un paciente.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {historias.map((historia) => (
             <div
               key={historia.id}
-              onClick={() => abrirModalEditar(historia)}
-              className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col gap-4"
+              className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md transition-shadow"
             >
-              <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="font-black text-xl text-slate-900">
-                    {historia.nombre_paciente}
+              <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center font-black">
+                    {historia.pacientes?.nombre_completo.charAt(0)}
+                  </div>
+                  <h3 className="font-bold text-slate-900 leading-tight">
+                    {historia.pacientes?.nombre_completo}
                   </h3>
-                  <p className="text-sm text-slate-500 font-medium mt-1">
-                    Actualizado:{" "}
-                    {new Date(historia.actualizado_en).toLocaleDateString()}
-                  </p>
                 </div>
-                <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                  Expediente
-                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3 flex-1 mb-4">
                 <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Motivo
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Motivo de consulta
                   </span>
-                  <p className="text-sm text-slate-700 line-clamp-2">
+                  <p className="text-sm font-medium text-slate-700 line-clamp-2">
                     {historia.motivo_consulta || "No especificado"}
                   </p>
                 </div>
                 <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Diagnóstico
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Evaluación
                   </span>
-                  <p className="text-sm text-slate-700 line-clamp-2 font-medium">
-                    {historia.diagnostico || "En evaluación"}
+                  <p className="text-sm font-medium text-slate-700 line-clamp-2">
+                    {historia.evaluacion || "Sin evaluación registrada"}
                   </p>
                 </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-400">
+                  Actualizado:{" "}
+                  {new Date(historia.actualizado_en).toLocaleDateString()}
+                </span>
+                <button className="text-indigo-600 text-sm font-bold hover:underline">
+                  Abrir Expediente
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* MODAL DEL EXPEDIENTE */}
+      {/* MODAL NUEVA HISTORIA */}
       {modalAbierto && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col my-8">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
               <h2 className="text-2xl font-black text-slate-900">
-                {historiaActual.id ? "Ficha Clínica" : "Nuevo Expediente"}
+                Apertura de Historia Clínica
               </h2>
               <button
                 onClick={() => setModalAbierto(false)}
@@ -252,45 +260,36 @@ export default function HistoriasPage() {
               </button>
             </div>
 
-            <form
-              onSubmit={guardarHistoria}
-              className="p-6 overflow-y-auto flex-1 space-y-6"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Nombre del Paciente *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={historiaActual.nombre_paciente}
-                    onChange={(e) =>
-                      setHistoriaActual({
-                        ...historiaActual,
-                        nombre_paciente: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-900"
-                    placeholder="Ej. Juan Pérez"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Fecha de Nacimiento
-                  </label>
-                  <input
-                    type="date"
-                    value={historiaActual.fecha_nacimiento}
-                    onChange={(e) =>
-                      setHistoriaActual({
-                        ...historiaActual,
-                        fecha_nacimiento: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900"
-                  />
-                </div>
+            <form onSubmit={guardarHistoria} className="p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Seleccionar Paciente *
+                </label>
+                <select
+                  required
+                  value={nuevaHistoria.paciente_id}
+                  onChange={(e) =>
+                    setNuevaHistoria({
+                      ...nuevaHistoria,
+                      paciente_id: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900"
+                >
+                  <option value="">
+                    -- Elige un paciente de tu directorio --
+                  </option>
+                  {listaPacientes.map((paciente) => (
+                    <option key={paciente.id} value={paciente.id}>
+                      {paciente.nombre_completo}
+                    </option>
+                  ))}
+                </select>
+                {listaPacientes.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-2 font-medium">
+                    Debes tener pacientes registrados en tu Directorio primero.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -299,72 +298,78 @@ export default function HistoriasPage() {
                 </label>
                 <textarea
                   rows={2}
-                  value={historiaActual.motivo_consulta}
+                  value={nuevaHistoria.motivo_consulta}
                   onChange={(e) =>
-                    setHistoriaActual({
-                      ...historiaActual,
+                    setNuevaHistoria({
+                      ...nuevaHistoria,
                       motivo_consulta: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none text-slate-900"
-                  placeholder="¿Por qué acude el paciente?"
-                />
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-700 font-medium resize-none"
+                  placeholder="Razón principal por la que el paciente acude a terapia..."
+                ></textarea>
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Diagnóstico / Hipótesis Clínica
-                </label>
-                <input
-                  type="text"
-                  value={historiaActual.diagnostico}
-                  onChange={(e) =>
-                    setHistoriaActual({
-                      ...historiaActual,
-                      diagnostico: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-900"
-                  placeholder="Ej. Trastorno de ansiedad generalizada"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Evolución y Notas de Sesión
+                  Antecedentes Clínicos / Familiares
                 </label>
                 <textarea
-                  rows={6}
-                  value={historiaActual.evolucion}
+                  rows={3}
+                  value={nuevaHistoria.antecedentes}
                   onChange={(e) =>
-                    setHistoriaActual({
-                      ...historiaActual,
-                      evolucion: e.target.value,
+                    setNuevaHistoria({
+                      ...nuevaHistoria,
+                      antecedentes: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none text-slate-900"
-                  placeholder="Registra aquí los avances, tareas o detalles de cada sesión..."
-                />
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-700 font-medium resize-none"
+                ></textarea>
               </div>
 
-              <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setModalAbierto(false)}
-                  className="px-6 py-3 font-bold text-slate-500 hover:text-slate-800 transition-colors"
-                >
-                  Cancelar
-                </button>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Evaluación Psicológica Inicial
+                </label>
+                <textarea
+                  rows={3}
+                  value={nuevaHistoria.evaluacion}
+                  onChange={(e) =>
+                    setNuevaHistoria({
+                      ...nuevaHistoria,
+                      evaluacion: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-700 font-medium resize-none"
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Plan de Tratamiento y Objetivos
+                </label>
+                <textarea
+                  rows={2}
+                  value={nuevaHistoria.plan_tratamiento}
+                  onChange={(e) =>
+                    setNuevaHistoria({
+                      ...nuevaHistoria,
+                      plan_tratamiento: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-700 font-medium resize-none"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-slate-100">
                 <button
                   type="submit"
-                  disabled={guardando}
-                  className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center min-w-32"
+                  disabled={guardando || listaPacientes.length === 0}
+                  className="w-full md:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center"
                 >
-                  {guardando ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    "Guardar Expediente"
-                  )}
+                  {guardando
+                    ? "Guardando Expediente..."
+                    : "Aperturar Historia Clínica"}
                 </button>
               </div>
             </form>
