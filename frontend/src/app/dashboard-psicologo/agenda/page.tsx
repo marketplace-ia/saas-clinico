@@ -11,6 +11,7 @@ interface Cita {
   hora_fin: string;
   modalidad: string;
   estado: string;
+  google_event_id?: string;
 }
 
 export default function AgendaPage() {
@@ -42,7 +43,7 @@ export default function AgendaPage() {
         .order("hora_inicio", { ascending: true });
 
       if (error) throw error;
-      if (data) setCitas(data);
+      if (data) setCitas(data as Cita[]);
     } catch (error) {
       console.error("Error cargando citas:", error);
     } finally {
@@ -62,29 +63,15 @@ export default function AgendaPage() {
     setGuardando(true);
 
     try {
-      // 1. Obtenemos la sesión actual (que contiene el token de Google si se conectó)
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      // 2. Guardamos la cita en nuestra base de datos de Clinesfera
-      const { error } = await supabase.from("citas").insert([
-        {
-          psicologo_id: session.user.id,
-          nombre_paciente: nuevaCita.nombre_paciente,
-          fecha: nuevaCita.fecha,
-          hora_inicio: nuevaCita.hora_inicio,
-          hora_fin: nuevaCita.hora_fin,
-          modalidad: nuevaCita.modalidad,
-          estado: "Programada",
-        },
-      ]);
-
-      if (error) throw error;
-
-      // 3. ¡LA MAGIA! Si tenemos el token de Google, enviamos la cita al Calendario
+      let googleId = null;
       const googleToken = session.provider_token;
+
+      // 1. Si tenemos Google conectado, creamos el evento allá primero
       if (googleToken) {
         try {
           const eventoGoogle = {
@@ -92,7 +79,7 @@ export default function AgendaPage() {
             description: `Modalidad: ${nuevaCita.modalidad} - Agendado desde Clinesfera`,
             start: {
               dateTime: `${nuevaCita.fecha}T${nuevaCita.hora_inicio}:00`,
-              timeZone: "America/Guayaquil", // Zona horaria de Ecuador
+              timeZone: "America/Guayaquil",
             },
             end: {
               dateTime: `${nuevaCita.fecha}T${nuevaCita.hora_fin}:00`,
@@ -100,7 +87,7 @@ export default function AgendaPage() {
             },
           };
 
-          await fetch(
+          const res = await fetch(
             "https://www.googleapis.com/calendar/v3/calendars/primary/events",
             {
               method: "POST",
@@ -111,16 +98,32 @@ export default function AgendaPage() {
               body: JSON.stringify(eventoGoogle),
             },
           );
-          console.log("¡Cita sincronizada con Google Calendar!");
+
+          if (res.ok) {
+            const googleData = await res.json();
+            googleId = googleData.id; // Capturamos el ID secreto de Google
+          }
         } catch (err) {
-          console.error(
-            "No se pudo sincronizar con Google (quizás el token expiró):",
-            err,
-          );
+          console.error("Error con Google Calendar:", err);
         }
       }
 
-      // 4. Limpiamos y recargamos la vista
+      // 2. Guardamos en Supabase (incluyendo el ID de Google si lo obtuvimos)
+      const { error } = await supabase.from("citas").insert([
+        {
+          psicologo_id: session.user.id,
+          nombre_paciente: nuevaCita.nombre_paciente,
+          fecha: nuevaCita.fecha,
+          hora_inicio: nuevaCita.hora_inicio,
+          hora_fin: nuevaCita.hora_fin,
+          modalidad: nuevaCita.modalidad,
+          estado: "Programada",
+          google_event_id: googleId,
+        },
+      ]);
+
+      if (error) throw error;
+
       setNuevaCita({
         nombre_paciente: "",
         fecha: "",
@@ -135,6 +138,39 @@ export default function AgendaPage() {
       alert("Hubo un error al guardar la cita.");
     } finally {
       setGuardando(false);
+    }
+  };
+
+  // NUEVA FUNCIÓN: Eliminar Cita de BD y de Google
+  const eliminarCita = async (id: string, googleEventId?: string) => {
+    if (!confirm("¿Estás seguro de cancelar esta cita?")) return;
+
+    try {
+      // 1. Intentamos borrar de Google si tiene ID
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const googleToken = session?.provider_token;
+
+      if (googleToken && googleEventId) {
+        await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${googleToken}` },
+          },
+        );
+      }
+
+      // 2. Borramos de Supabase
+      const { error } = await supabase.from("citas").delete().eq("id", id);
+      if (error) throw error;
+
+      // 3. Recargamos la vista
+      cargarCitas();
+    } catch (error) {
+      console.error("Error eliminando cita:", error);
+      alert("Hubo un error al intentar eliminar la cita.");
     }
   };
 
@@ -202,9 +238,30 @@ export default function AgendaPage() {
           {citas.map((cita) => (
             <div
               key={cita.id}
-              className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 hover:shadow-md transition-shadow"
+              className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 hover:shadow-md transition-shadow group relative"
             >
-              <div className="flex justify-between items-start">
+              {/* BOTÓN ELIMINAR (Oculto por defecto, aparece al pasar el ratón) */}
+              <button
+                onClick={() => eliminarCita(cita.id, cita.google_event_id)}
+                className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 bg-white rounded-full p-1 shadow-sm border border-slate-100"
+                title="Cancelar Cita"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+
+              <div className="flex justify-between items-start pr-8">
                 <span
                   className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${cita.modalidad === "Online" ? "bg-blue-50 text-blue-700" : "bg-emerald-50 text-emerald-700"}`}
                 >
