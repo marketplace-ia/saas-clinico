@@ -74,20 +74,30 @@ export default function AgendaPage() {
       // 1. Validar Token de Google
       if (!googleToken) {
         alert(
-          "⚠️ Aviso: La llave de Google expiró o no existe. La cita se guardará SOLO en Clinesfera. Ve a 'Mi Perfil' y vuelve a Conectar el Calendario para refrescar la llave.",
+          "⚠️ Aviso: No tienes una conexión activa con Google en este momento. La cita se guardará SOLO en Clinesfera.",
         );
       } else {
-        // 2. Intentar guardar en Google
+        // 2. Intentar guardar en Google con formato estricto
         try {
+          // Aseguramos que la hora tenga el formato correcto HH:MM:00
+          const horaInicioCompleta =
+            nuevaCita.hora_inicio.length === 5
+              ? `${nuevaCita.hora_inicio}:00`
+              : nuevaCita.hora_inicio;
+          const horaFinCompleta =
+            nuevaCita.hora_fin.length === 5
+              ? `${nuevaCita.hora_fin}:00`
+              : nuevaCita.hora_fin;
+
           const eventoGoogle = {
             summary: `Cita: ${nuevaCita.nombre_paciente}`,
             description: `Modalidad: ${nuevaCita.modalidad} - Agendado desde Clinesfera`,
             start: {
-              dateTime: `${nuevaCita.fecha}T${nuevaCita.hora_inicio}:00`,
+              dateTime: `${nuevaCita.fecha}T${horaInicioCompleta}`,
               timeZone: "America/Guayaquil",
             },
             end: {
-              dateTime: `${nuevaCita.fecha}T${nuevaCita.hora_fin}:00`,
+              dateTime: `${nuevaCita.fecha}T${horaFinCompleta}`,
               timeZone: "America/Guayaquil",
             },
           };
@@ -108,13 +118,18 @@ export default function AgendaPage() {
             const googleData = await res.json();
             googleId = googleData.id;
           } else {
-            console.error("Error de Google:", await res.text());
+            // AQUÍ ESTÁ LA MAGIA: Leemos el error exacto que nos devuelve Google
+            const errorData = await res.json();
+            console.error("Error completo de Google:", errorData);
+            const motivoExacto =
+              errorData.error?.message || "Error desconocido";
+
             alert(
-              "⚠️ Error al sincronizar con Google. Probablemente tu sesión expiró. Vuelve a conectarlo en Mi Perfil.",
+              `⚠️ GOOGLE RECHAZÓ LA CITA.\nMotivo: "${motivoExacto}"\n\nSi dice "Insufficient Permission", recuerda que al conectar el calendario DEBES MARCAR LA CASILLA DE PERMISOS.`,
             );
           }
         } catch (err) {
-          console.error("Error con Google Calendar:", err);
+          console.error("Error con la petición de Google Calendar:", err);
         }
       }
 
@@ -145,7 +160,7 @@ export default function AgendaPage() {
       cargarCitas();
     } catch (error) {
       console.error("Error al agendar:", error);
-      alert("Hubo un error al guardar la cita.");
+      alert("Hubo un error al guardar la cita en la base de datos.");
     } finally {
       setGuardando(false);
     }
@@ -173,10 +188,6 @@ export default function AgendaPage() {
             "No se pudo borrar de Google (Token expirado o evento ya no existe).",
           );
         }
-      } else if (!googleToken && googleEventId) {
-        alert(
-          "⚠️ Aviso: Borrado en Clinesfera, pero como tu conexión a Google expiró, deberás borrarla manualmente en tu Google Calendar.",
-        );
       }
 
       const { error } = await supabase.from("citas").delete().eq("id", id);
