@@ -39,11 +39,9 @@ export default function AgendaPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Verificamos si tiene el token de Google activo
+      // Verificamos si tiene el token de Google activo al cargar
       if (session.provider_token) {
         setGoogleConectado(true);
-      } else {
-        setGoogleConectado(false);
       }
 
       const { data, error } = await supabase
@@ -63,10 +61,26 @@ export default function AgendaPage() {
   }, []);
 
   useEffect(() => {
+    // Cápsula asíncrona exigida por React para evitar renders en cascada
     const inicializarDatos = async () => {
       await cargarCitas();
     };
     inicializarDatos();
+
+    // 🟢 RADAR DE SESIÓN: Atrapa la llave de Google en tiempo real
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session?.provider_token) {
+          setGoogleConectado(true);
+        } else {
+          setGoogleConectado(false);
+        }
+      },
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, [cargarCitas]);
 
   // FUNCIONES DE GOOGLE CALENDAR
@@ -104,7 +118,6 @@ export default function AgendaPage() {
       } = await supabase.auth.getSession();
       const token = session?.provider_token;
 
-      // 1. Le decimos a Google que revoque el permiso (Desconexión real)
       if (token) {
         await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, {
           method: "POST",
@@ -112,7 +125,6 @@ export default function AgendaPage() {
         });
       }
 
-      // 2. Cerramos la sesión en Supabase para limpiar el token
       await supabase.auth.signOut();
       window.location.href = "/";
     } catch (error) {
@@ -136,7 +148,7 @@ export default function AgendaPage() {
       const googleToken = session.provider_token;
 
       if (!googleToken) {
-        // Guardado local sin Google
+        // Guardado local sin Google (Falla silenciosa si no hay token)
       } else {
         try {
           const horaInicioCompleta =
@@ -281,7 +293,6 @@ export default function AgendaPage() {
 
       {!cargando && !googleConectado && (
         <div className="bg-linear-to-r from-indigo-600 via-purple-600 to-indigo-800 rounded-3xl p-6 md:p-8 mb-8 shadow-lg text-white flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
-          {/* Círculos decorativos de fondo */}
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-white opacity-10 blur-2xl"></div>
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-32 h-32 rounded-full bg-white opacity-10 blur-xl"></div>
 
@@ -318,7 +329,7 @@ export default function AgendaPage() {
       )}
 
       {!cargando && googleConectado && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
           <div className="flex items-center gap-4">
             <div className="bg-emerald-100 p-3 rounded-xl">
               <svg
@@ -472,6 +483,7 @@ export default function AgendaPage() {
         </div>
       )}
 
+      {/* Modales... */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
