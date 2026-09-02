@@ -18,6 +18,10 @@ export default function AgendaPage() {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [cargando, setCargando] = useState(true);
 
+  // Estados para Google Calendar
+  const [googleConectado, setGoogleConectado] = useState(false);
+  const [procesandoGoogle, setProcesandoGoogle] = useState(false);
+
   const [modalAbierto, setModalAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [nuevaCita, setNuevaCita] = useState({
@@ -34,6 +38,13 @@ export default function AgendaPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return;
+
+      // Verificamos si tiene el token de Google activo
+      if (session.provider_token) {
+        setGoogleConectado(true);
+      } else {
+        setGoogleConectado(false);
+      }
 
       const { data, error } = await supabase
         .from("citas")
@@ -58,6 +69,59 @@ export default function AgendaPage() {
     inicializarDatos();
   }, [cargarCitas]);
 
+  // FUNCIONES DE GOOGLE CALENDAR
+  const conectarGoogle = async () => {
+    setProcesandoGoogle(true);
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          scopes: "https://www.googleapis.com/auth/calendar",
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+          redirectTo: `${window.location.origin}/dashboard-psicologo/agenda`,
+        },
+      });
+    } catch (error) {
+      console.error("Error al conectar:", error);
+      setProcesandoGoogle(false);
+    }
+  };
+
+  const desconectarGoogle = async () => {
+    if (
+      !confirm(
+        "¿Estás seguro de desconectar tu Google Calendar? Por seguridad, se cerrará tu sesión y deberás volver a entrar.",
+      )
+    )
+      return;
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.provider_token;
+
+      // 1. Le decimos a Google que revoque el permiso (Desconexión real)
+      if (token) {
+        await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
+      }
+
+      // 2. Cerramos la sesión en Supabase para limpiar el token
+      await supabase.auth.signOut();
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error al desconectar:", error);
+      alert("Hubo un problema al intentar desconectar.");
+    }
+  };
+
+  // FUNCIÓN PARA AGENDAR
   const agendarCita = async (e: React.FormEvent) => {
     e.preventDefault();
     setGuardando(true);
@@ -71,15 +135,10 @@ export default function AgendaPage() {
       let googleId = null;
       const googleToken = session.provider_token;
 
-      // 1. Validar Token de Google
       if (!googleToken) {
-        alert(
-          "⚠️ Aviso: No tienes una conexión activa con Google en este momento. La cita se guardará SOLO en Clinesfera.",
-        );
+        // Guardado local sin Google
       } else {
-        // 2. Intentar guardar en Google con formato estricto
         try {
-          // Aseguramos que la hora tenga el formato correcto HH:MM:00
           const horaInicioCompleta =
             nuevaCita.hora_inicio.length === 5
               ? `${nuevaCita.hora_inicio}:00`
@@ -118,14 +177,10 @@ export default function AgendaPage() {
             const googleData = await res.json();
             googleId = googleData.id;
           } else {
-            // AQUÍ ESTÁ LA MAGIA: Leemos el error exacto que nos devuelve Google
             const errorData = await res.json();
             console.error("Error completo de Google:", errorData);
-            const motivoExacto =
-              errorData.error?.message || "Error desconocido";
-
             alert(
-              `⚠️ GOOGLE RECHAZÓ LA CITA.\nMotivo: "${motivoExacto}"\n\nSi dice "Insufficient Permission", recuerda que al conectar el calendario DEBES MARCAR LA CASILLA DE PERMISOS.`,
+              `⚠️ GOOGLE RECHAZÓ LA CITA.\nMotivo: "${errorData.error?.message}"\nRevisa tus permisos.`,
             );
           }
         } catch (err) {
@@ -133,7 +188,6 @@ export default function AgendaPage() {
         }
       }
 
-      // 3. Guardar en Supabase
       const { error } = await supabase.from("citas").insert([
         {
           psicologo_id: session.user.id,
@@ -168,7 +222,6 @@ export default function AgendaPage() {
 
   const eliminarCita = async (id: string, googleEventId?: string) => {
     if (!confirm("¿Estás seguro de cancelar esta cita?")) return;
-
     try {
       const {
         data: { session },
@@ -176,33 +229,25 @@ export default function AgendaPage() {
       const googleToken = session?.provider_token;
 
       if (googleToken && googleEventId) {
-        const res = await fetch(
+        await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
           {
             method: "DELETE",
             headers: { Authorization: `Bearer ${googleToken}` },
           },
         );
-        if (!res.ok) {
-          console.error(
-            "No se pudo borrar de Google (Token expirado o evento ya no existe).",
-          );
-        }
       }
-
       const { error } = await supabase.from("citas").delete().eq("id", id);
       if (error) throw error;
-
       cargarCitas();
     } catch (error) {
       console.error("Error eliminando cita:", error);
-      alert("Hubo un error al intentar eliminar la cita.");
     }
   };
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto animate-in fade-in duration-500 h-full flex flex-col">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 mb-2">Mi Agenda</h1>
           <p className="text-slate-500 font-medium">
@@ -229,6 +274,89 @@ export default function AgendaPage() {
           Nueva Cita
         </button>
       </div>
+
+      {/* ========================================= */}
+      {/* SECCIÓN VIP: BANNERS DE GOOGLE CALENDAR  */}
+      {/* ========================================= */}
+
+      {!cargando && !googleConectado && (
+        <div className="bg-linear-to-r from-indigo-600 via-purple-600 to-indigo-800 rounded-3xl p-6 md:p-8 mb-8 shadow-lg text-white flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
+          {/* Círculos decorativos de fondo */}
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-white opacity-10 blur-2xl"></div>
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-32 h-32 rounded-full bg-white opacity-10 blur-xl"></div>
+
+          <div className="flex items-center gap-5 relative z-10">
+            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm shadow-inner shrink-0">
+              <svg
+                className="w-8 h-8 text-white"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-2xl font-black mb-1">
+                ¡Sincroniza tu Google Calendar!
+              </h3>
+              <p className="text-indigo-100 font-medium max-w-lg">
+                Evita cruces de horarios. Conecta tu cuenta y tus citas se
+                guardarán automáticamente en tu calendario personal con
+                recordatorios.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={conectarGoogle}
+            disabled={procesandoGoogle}
+            className="w-full md:w-auto relative z-10 bg-white text-indigo-600 font-black px-8 py-4 rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:scale-100"
+          >
+            {procesandoGoogle ? "Conectando..." : "Vincular Cuenta de Google"}
+          </button>
+        </div>
+      )}
+
+      {!cargando && googleConectado && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="bg-emerald-100 p-3 rounded-xl">
+              <svg
+                className="w-6 h-6 text-emerald-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-emerald-900 font-black text-lg">
+                Google Calendar Sincronizado
+              </h3>
+              <p className="text-emerald-700 font-medium text-sm">
+                Tus citas se están respaldando en tiempo real en tu calendario
+                personal.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={desconectarGoogle}
+            className="text-red-500 hover:bg-red-50 px-5 py-2.5 rounded-xl font-bold text-sm transition-colors border border-transparent hover:border-red-100"
+          >
+            Desconectar Calendario
+          </button>
+        </div>
+      )}
+
+      {/* ========================================= */}
+      {/* FIN SECCIÓN VIP */}
+      {/* ========================================= */}
 
       {cargando ? (
         <div className="flex-1 flex items-center justify-center">
