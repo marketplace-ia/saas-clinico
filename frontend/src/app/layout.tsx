@@ -6,7 +6,7 @@ export const metadata = {
   description:
     "Plataforma SaaS para gestión clínica, agendamiento y expedientes para psicólogos.",
   verification: {
-    google: "S2t1Fha2s4yvLYydturB4Kuv_CJc60hTgn1nwbdi_AI",
+    google: "S2tlFha2s4yvLYydturB4Kuv_CJc60hTgn1nwbdi_AI",
   },
 };
 
