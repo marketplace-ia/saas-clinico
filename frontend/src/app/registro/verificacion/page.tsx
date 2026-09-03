@@ -41,7 +41,6 @@ export default function SubirVerificacionPage() {
         .from("documentos_verificacion")
         .getPublicUrl(fileName);
 
-      // 🛡️ SOLUCIÓN 1: Usamos UPSERT. Si no existe, lo crea. Si existe, lo actualiza.
       const { error: updateError } = await supabase
         .from("perfil_psicologo")
         .upsert({
@@ -53,15 +52,17 @@ export default function SubirVerificacionPage() {
 
       if (updateError) throw updateError;
 
-      // 🛡️ SOLUCIÓN 2: Redirección dura. Limpia la caché de Next.js y fuerza una carga nueva.
+      // Redirección dura para limpiar caché
       window.location.href = "/dashboard-psicologo";
     } catch (error) {
-      console.error("Error al subir:", error);
-      const mensajeError =
-        error instanceof Error
-          ? error.message
-          : "Hubo un error al enviar tus documentos.";
-      setMensaje(mensajeError);
+      console.error("Error completo:", error);
+      const err = error as { message?: string; error_description?: string };
+      const mensajeReal =
+        err?.message ||
+        err?.error_description ||
+        JSON.stringify(error) ||
+        "Error desconocido";
+      setMensaje(`Detalle técnico: ${mensajeReal}`);
     } finally {
       setSubiendo(false);
     }
@@ -174,9 +175,7 @@ export default function SubirVerificacionPage() {
             </div>
 
             {mensaje && (
-              <div
-                className={`p-4 rounded-xl text-sm font-bold ${mensaje.includes("error") ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}
-              >
+              <div className="p-4 rounded-xl text-sm font-bold bg-red-50 text-red-600 wrap-break-word">
                 {mensaje}
               </div>
             )}
