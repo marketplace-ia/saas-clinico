@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabase"; // Ajusta los '...' si tu archivo supabase está en otra ruta
+import { supabase } from "../../../lib/supabase";
 import { useRouter } from "next/navigation";
 import SidebarPsicologo from "../components/SidebarPsicologo";
 import Link from "next/link";
@@ -23,13 +23,11 @@ export default function DashboardPsicologoLayout({
           data: { session },
         } = await supabase.auth.getSession();
 
-        // Si no está logueado, patada al login
         if (!session) {
           router.push("/login");
           return;
         }
 
-        // Buscamos su perfil para ver el estado
         const { data, error } = await supabase
           .from("perfil_psicologo")
           .select("estado_verificacion, url_documento")
@@ -38,7 +36,6 @@ export default function DashboardPsicologoLayout({
 
         if (error) {
           console.error("No se encontró perfil:", error);
-          // Si recién se registró y aún no hay datos, asumimos pendiente y sin docs
           setEstado("pendiente");
           setTieneDocs(false);
         } else if (data) {
@@ -64,9 +61,9 @@ export default function DashboardPsicologoLayout({
   if (cargando) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+        <div className="w-12 h-12 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin mb-4"></div>
         <p className="text-slate-500 font-medium">
-          Comprobando credenciales de seguridad...
+          Autenticando credenciales de seguridad...
         </p>
       </div>
     );
@@ -83,10 +80,6 @@ export default function DashboardPsicologoLayout({
       </div>
     );
   }
-
-  // ==========================================
-  // PANTALLAS DE BLOQUEO (Sin Sidebar ni Menú)
-  // ==========================================
 
   // FASE 3: Falta subir documentos
   if (!tieneDocs) {
@@ -109,25 +102,26 @@ export default function DashboardPsicologoLayout({
             </svg>
           </div>
           <h2 className="text-2xl font-black text-slate-900 mb-3">
-            Falta Documentación
+            Requisito de Seguridad
           </h2>
-          <p className="text-slate-500 font-medium mb-8">
-            Para proteger la salud mental de los pacientes, Clinesfera requiere
-            validar tus credenciales profesionales antes de darte acceso a la
-            agenda.
+          <p className="text-slate-500 font-medium mb-8 leading-relaxed">
+            En cumplimiento con los más altos estándares de seguridad y calidad
+            del sector salud, requerimos validar tus credenciales. Este
+            protocolo garantiza un ecosistema de software exclusivo, profesional
+            y 100% seguro para nuestra red de especialistas certificados.
           </p>
           <div className="flex flex-col gap-3">
             <Link
               href="/registro/verificacion"
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-sm"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-sm"
             >
-              Subir mi Registro SENESCYT
+              Iniciar Autenticación de Perfil
             </Link>
             <button
               onClick={cerrarSesion}
               className="w-full bg-white hover:bg-slate-50 text-slate-600 font-bold py-3 px-6 rounded-xl transition-colors border border-slate-200"
             >
-              Cerrar sesión
+              Cerrar sesión de forma segura
             </button>
           </div>
         </div>
@@ -135,18 +129,17 @@ export default function DashboardPsicologoLayout({
     );
   }
 
-  // FASE 4: Cuarentena (Documentos enviados pero esperando aprobación)
+  // FASE 4: Cuarentena (NUEVOS TEXTOS CORPORATIVOS)
   if (estado === "pendiente") {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
         <div className="bg-white max-w-lg w-full p-8 md:p-10 rounded-3xl shadow-xl border border-slate-100 text-center relative overflow-hidden">
-          {/* Decoración de fondo */}
-          <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500"></div>
+          <div className="absolute top-0 left-0 w-full h-2 bg-slate-800"></div>
 
-          <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center animate-pulse">
+          <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center animate-pulse">
               <svg
-                className="w-8 h-8 text-indigo-600"
+                className="w-8 h-8 text-slate-700"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -161,18 +154,23 @@ export default function DashboardPsicologoLayout({
             </div>
           </div>
           <h2 className="text-2xl font-black text-slate-900 mb-3">
-            Cuenta en Revisión
+            Auditoría de Perfil en Curso
           </h2>
-          <p className="text-slate-500 font-medium mb-6">
-            Hemos recibido tus documentos con éxito. Nuestro equipo de calidad
-            está validando tus credenciales.
+          <p className="text-slate-500 font-medium mb-6 leading-relaxed">
+            Su documentación ha sido recibida mediante una conexión cifrada de
+            extremo a extremo. Nuestro departamento de{" "}
+            <span className="font-bold text-slate-700">
+              Cumplimiento Normativo
+            </span>{" "}
+            se encuentra validando su registro para garantizar la máxima
+            seguridad de nuestra red médica.
           </p>
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-8">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8">
             <p className="text-sm text-slate-600 font-medium">
-              Tiempo estimado de revisión:
+              Acuerdo de Nivel de Servicio (SLA):
               <br />
-              <strong className="text-indigo-600">
-                24 a 48 horas laborables
+              <strong className="text-slate-900 text-base">
+                Resolución en 24 a 48 horas laborables
               </strong>
             </p>
           </div>
@@ -180,31 +178,29 @@ export default function DashboardPsicologoLayout({
             onClick={cerrarSesion}
             className="w-full bg-white hover:bg-slate-50 text-slate-600 font-bold py-3 px-6 rounded-xl transition-colors border border-slate-200 shadow-sm"
           >
-            Cerrar sesión por ahora
+            Cerrar sesión de forma segura
           </button>
         </div>
       </div>
     );
   }
 
-  // FASE 5: Rechazado (Bonus de seguridad)
+  // FASE 5: Rechazado
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
       <div className="bg-white max-w-lg w-full p-8 md:p-10 rounded-3xl shadow-xl border border-slate-100 text-center border-t-4 border-t-red-500">
         <h2 className="text-2xl font-black text-slate-900 mb-3">
-          Verificación Fallida
+          Auditoría No Superada
         </h2>
-        <p className="text-slate-500 font-medium mb-8 leading-relaxed">
-          En cumplimiento con los más altos estándares de seguridad y calidad
-          del sector salud, requerimos validar tus credenciales. Este protocolo
-          garantiza un ecosistema de software exclusivo, profesional y 100%
-          seguro para nuestra red de especialistas certificados.
+        <p className="text-slate-500 font-medium mb-6">
+          No pudimos validar su registro profesional. Si considera que se trata
+          de un error del sistema, por favor contacte a soporte técnico.
         </p>
         <button
           onClick={cerrarSesion}
           className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-6 rounded-xl transition-all w-full"
         >
-          Entendido, salir
+          Cerrar sesión
         </button>
       </div>
     </div>
