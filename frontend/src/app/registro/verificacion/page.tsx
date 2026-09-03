@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { supabase } from "../../../../lib/supabase";
-import { useRouter } from "next/navigation";
 
 export default function SubirVerificacionPage() {
   const [cedula, setCedula] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [mensaje, setMensaje] = useState("");
-  const router = useRouter();
 
   const manejarSubida = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +20,6 @@ export default function SubirVerificacionPage() {
     setMensaje("");
 
     try {
-      // 1. Obtener el usuario actual logueado
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -32,34 +29,32 @@ export default function SubirVerificacionPage() {
       const fileExt = archivo.name.split(".").pop();
       const fileName = `${userId}-${Math.random()}.${fileExt}`;
 
-      // 2. Subir la imagen al Storage de Supabase
       const { error: uploadError } = await supabase.storage
         .from("documentos_verificacion")
         .upload(fileName, archivo);
 
       if (uploadError) throw uploadError;
 
-      // 3. Obtener el link público de la imagen que acabamos de subir
       const {
         data: { publicUrl },
       } = supabase.storage
         .from("documentos_verificacion")
         .getPublicUrl(fileName);
 
-      // 4. Actualizar el perfil del psicólogo en la base de datos
+      // 🛡️ SOLUCIÓN 1: Usamos UPSERT. Si no existe, lo crea. Si existe, lo actualiza.
       const { error: updateError } = await supabase
         .from("perfil_psicologo")
-        .update({
+        .upsert({
+          id: userId,
           cedula: cedula,
           url_documento: publicUrl,
           estado_verificacion: "pendiente",
-        })
-        .eq("id", userId); // Actualizamos solo al usuario actual
+        });
 
       if (updateError) throw updateError;
 
-      // ¡Éxito! Lo mandamos a la sala de espera
-      router.push("/dashboard-psicologo");
+      // 🛡️ SOLUCIÓN 2: Redirección dura. Limpia la caché de Next.js y fuerza una carga nueva.
+      window.location.href = "/dashboard-psicologo";
     } catch (error) {
       console.error("Error al subir:", error);
       const mensajeError =
