@@ -45,6 +45,7 @@ export default function SubirVerificacionPage() {
         .from("perfil_psicologo")
         .upsert({
           id: userId,
+          psicologo_id: userId, // 👈 SOLUCIÓN: Agregamos la columna requerida por tu base de datos
           cedula: cedula,
           url_documento: publicUrl,
           estado_verificacion: "pendiente",
