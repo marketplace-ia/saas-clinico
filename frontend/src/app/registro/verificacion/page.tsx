@@ -95,9 +95,11 @@ export default function SubirVerificacionPage() {
         <h2 className="mt-6 text-center text-3xl font-black text-slate-900">
           Verificación Profesional
         </h2>
-        <p className="mt-2 text-center text-sm text-slate-600 font-medium px-4">
-          Para garantizar la seguridad de los pacientes, Clinesfera requiere
-          validar tus credenciales de la SENESCYT.
+        <p className="mt-3 text-center text-sm text-slate-600 font-medium px-4 leading-relaxed">
+          Como plataforma orientada a profesionales de la salud, operamos bajo
+          estrictas normativas de seguridad. Valida tu registro en la SENESCYT
+          para certificar tu perfil y acceder a todas las herramientas de tu
+          consultorio digital.
         </p>
       </div>
 

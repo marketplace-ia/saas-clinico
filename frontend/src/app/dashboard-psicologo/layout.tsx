@@ -194,9 +194,11 @@ export default function DashboardPsicologoLayout({
         <h2 className="text-2xl font-black text-slate-900 mb-3">
           Verificación Fallida
         </h2>
-        <p className="text-slate-500 font-medium mb-6">
-          No pudimos validar tu registro profesional. Si crees que esto es un
-          error, por favor contáctanos.
+        <p className="text-slate-500 font-medium mb-8 leading-relaxed">
+          En cumplimiento con los más altos estándares de seguridad y calidad
+          del sector salud, requerimos validar tus credenciales. Este protocolo
+          garantiza un ecosistema de software exclusivo, profesional y 100%
+          seguro para nuestra red de especialistas certificados.
         </p>
         <button
           onClick={cerrarSesion}
