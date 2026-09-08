@@ -26,7 +26,7 @@ export const LanguageProvider = ({
 
   useEffect(() => {
     // 1. Leemos la memoria
-    const storedLang = localStorage.getItem("lumina_lang") as LangType;
+    const storedLang = localStorage.getItem("Clinesfera_lang") as LangType;
 
     // 2. Modificamos el DOM directamente (esto no dispara alertas de React)
     if (storedLang) {
@@ -46,7 +46,7 @@ export const LanguageProvider = ({
 
   const setLang = (newLang: LangType) => {
     setLangState(newLang);
-    localStorage.setItem("lumina_lang", newLang);
+    localStorage.setItem("Clinesfera_lang", newLang);
     document.documentElement.dir = newLang === "ar" ? "rtl" : "ltr";
   };
 
