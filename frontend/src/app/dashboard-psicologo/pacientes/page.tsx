@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
+import Link from "next/link"; // 🟢 AÑADIDO: Importación vital para enrutamiento
 
 interface Paciente {
   id: string;
@@ -10,6 +11,7 @@ interface Paciente {
   telefono: string;
   estado: string;
   creado_en: string;
+  fecha_nacimiento: string; // Añadido para consistencia
 }
 
 export default function PacientesPage() {
@@ -257,7 +259,12 @@ export default function PacientesPage() {
                     year: "numeric",
                   })}
                 </span>
-                <button className="text-indigo-600 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+
+                {/* 🟢 CAMBIO VITAL: Botón convertido en Enlace (Link) */}
+                <Link
+                  href={`/dashboard-psicologo/pacientes/${paciente.id}`}
+                  className="text-indigo-600 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 hover:text-indigo-800"
+                >
                   Ver Ficha{" "}
                   <svg
                     className="w-4 h-4"
@@ -272,7 +279,7 @@ export default function PacientesPage() {
                       d="M9 5l7 7-7 7"
                     />
                   </svg>
-                </button>
+                </Link>
               </div>
             </div>
           ))}
