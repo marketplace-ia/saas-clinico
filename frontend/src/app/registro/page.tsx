@@ -145,22 +145,43 @@ export default function RegistroPage() {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session && session.user?.email) {
         const correoUser = session.user.email;
-        const rolPendiente =
-          localStorage.getItem("lumina_registro_rol") || "paciente";
+        const rolPendiente = localStorage.getItem("lumina_registro_rol");
 
-        try {
-          await supabase
-            .from("roles_usuarios")
-            .upsert([{ correo: correoUser, rol: rolPendiente }], {
-              onConflict: "correo",
-            });
-        } catch (e) {
-          console.error("Error sincronizando rol:", e);
+        let rolFinal = "paciente"; // Fallback por defecto
+
+        // 🛡️ SOLUCIÓN: Lógica inteligente de roles
+        if (rolPendiente) {
+          // Si recién se registra, guarda su rol en la BD
+          try {
+            await supabase
+              .from("roles_usuarios")
+              .upsert([{ correo: correoUser, rol: rolPendiente }], {
+                onConflict: "correo",
+              });
+            rolFinal = rolPendiente;
+          } catch (e) {
+            console.error("Error guardando rol nuevo:", e);
+          }
+          localStorage.removeItem("lumina_registro_rol"); // Limpiamos la memoria
+        } else {
+          // Si ya estaba registrado, LEE su rol de la BD (NO lo sobreescribe)
+          try {
+            const { data } = await supabase
+              .from("roles_usuarios")
+              .select("rol")
+              .eq("correo", correoUser)
+              .single();
+
+            if (data && data.rol) {
+              rolFinal = data.rol;
+            }
+          } catch (e) {
+            console.error("Error leyendo rol existente:", e);
+          }
         }
 
-        localStorage.removeItem("lumina_registro_rol");
-
-        if (rolPendiente === "psicologo") {
+        // Redirección al dashboard correcto
+        if (rolFinal === "psicologo") {
           router.push("/dashboard-psicologo");
         } else {
           router.push("/dashboard-paciente");
@@ -184,6 +205,7 @@ export default function RegistroPage() {
     }
 
     try {
+      // Guardamos la intención de rol en memoria antes de disparar el registro
       localStorage.setItem("lumina_registro_rol", tipoCuenta);
 
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -192,6 +214,8 @@ export default function RegistroPage() {
       });
       if (signUpError) throw signUpError;
 
+      // Nota: Si el signUp requiere confirmación de email, onAuthStateChange no se disparará aún.
+      // Por si acaso, aseguramos la base de datos aquí también.
       if (data.user && data.user.email) {
         await supabase
           .from("roles_usuarios")
@@ -200,14 +224,19 @@ export default function RegistroPage() {
           });
       }
 
-      if (tipoCuenta === "psicologo") {
-        router.push("/dashboard-psicologo");
+      if (data.session) {
+        if (tipoCuenta === "psicologo") {
+          router.push("/dashboard-psicologo");
+        } else {
+          router.push("/dashboard-paciente");
+        }
       } else {
-        router.push("/dashboard-paciente");
+        setError("Por favor, revisa tu correo para confirmar tu cuenta.");
       }
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
       else setError(t.error);
+    } finally {
       setCargando(false);
     }
   };
