@@ -104,13 +104,37 @@ export default function LoginPage() {
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  // RADAR INTELIGENTE
+  // 🛡️ ESCÁNER DE IDENTIDAD AVANZADO
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        router.push("/dashboard-paciente");
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session && session.user?.email) {
+        const userEmail = session.user.email;
+
+        // 1. PUERTA VIP PARA EL ADMINISTRADOR
+        if (userEmail === "pinedaesteban535@gmail.com") {
+          router.push("/admin/verificaciones");
+          return;
+        }
+
+        // 2. ESCÁNER PARA EL RESTO DE USUARIOS
+        try {
+          const { data } = await supabase
+            .from("roles_usuarios")
+            .select("rol")
+            .eq("correo", userEmail)
+            .single();
+
+          if (data && data.rol === "psicologo") {
+            router.push("/dashboard-psicologo");
+          } else {
+            router.push("/dashboard-paciente"); // Fallback a paciente
+          }
+        } catch (e) {
+          console.error("Error validando rol:", e);
+          router.push("/dashboard-paciente"); // Fallback en caso de error
+        }
       }
     });
     return () => subscription.unsubscribe();
