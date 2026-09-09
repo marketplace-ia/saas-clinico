@@ -1,127 +1,92 @@
-import Link from "next/link";
-
 export default function PrivacidadPage() {
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-slate-200">
-        <div className="mb-8 border-b border-slate-100 pb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center text-indigo-600 font-bold hover:underline mb-6"
-          >
-            <svg
-              className="w-4 h-4 mr-2"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            Volver al inicio
-          </Link>
-          <h1 className="text-4xl font-black text-slate-900 mb-4">
-            Políticas de Privacidad de Clinesfera
-          </h1>
-          <p className="text-slate-500 font-medium">
-            Última actualización: {new Date().toLocaleDateString("es-ES")}
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white p-8 md:p-20">
+      <div className="max-w-4xl mx-auto bg-white dark:bg-[#111] p-8 md:p-12 rounded-3xl shadow-xl border border-slate-200 dark:border-white/10">
+        <h1 className="text-4xl font-black mb-8 text-indigo-600 dark:text-indigo-400">
+          Política de Privacidad
+        </h1>
+        <p className="text-sm text-slate-500 mb-8">
+          Última actualización: Septiembre 2026
+        </p>
 
-        <div className="prose prose-slate max-w-none space-y-6 text-slate-700 font-medium">
+        <div className="space-y-8 text-slate-700 dark:text-gray-300 leading-relaxed">
           <section>
-            <h2 className="text-2xl font-bold text-slate-900 mb-3">
-              1. Introducción y Aplicación
+            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">
+              1. Recopilación y Uso de Datos
             </h2>
             <p>
-              Bienvenido a <strong>Clinesfera</strong>. Respetamos su privacidad
-              y estamos comprometidos a proteger sus datos personales. Esta
-              política explica cómo recopilamos, usamos, almacenamos y
-              protegemos su información cuando utiliza nuestra plataforma SaaS.
+              Clinesfera es una plataforma SaaS de gestión clínica. Recopilamos
+              información personal básica (nombre, correo electrónico) para la
+              creación de cuentas, y datos operativos necesarios para el
+              funcionamiento de la agenda y expedientes clínicos. Estos datos se
+              utilizan exclusivamente para proveer el servicio al profesional de
+              la salud.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold text-slate-900 mb-3">
-              2. Uso de Datos de Google Workspace (Google Calendar API)
+            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">
+              2. Uso de Datos de Google API (Google Calendar)
             </h2>
             <p>
-              Clinesfera solicita acceso a su cuenta de Google exclusivamente
-              para sincronizar su agenda. El uso y la transferencia de
-              información recibida de las API de Google a cualquier otra
-              aplicación por parte de Clinesfera se adherirá estrictamente a la{" "}
+              Nuestra aplicación se integra con Google Calendar para facilitar
+              la gestión de citas de los profesionales. Para que esto funcione,
+              solicitamos permisos de acceso mediante OAuth.
+            </p>
+            <p className="mt-4 p-4 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl font-medium">
+              El uso y la transferencia por parte de Clinesfera a cualquier otra
+              aplicación de la información recibida de las API de Google se
+              ajustarán a la{" "}
               <a
                 href="https://developers.google.com/terms/api-services-user-data-policy"
                 target="_blank"
-                rel="noopener noreferrer"
-                className="text-indigo-600 hover:underline"
+                rel="noreferrer"
+                className="text-indigo-600 dark:text-indigo-400 underline"
               >
                 Política de datos de usuario de los servicios API de Google
-                (Google API Services User Data Policy)
               </a>
-              , incluidos los requisitos de uso limitado.
+              , incluidos los requisitos de Uso Limitado (Limited Use).
             </p>
-            <ul className="list-disc pl-5 mt-3 space-y-2">
+            <ul className="list-disc pl-6 mt-4 space-y-2">
               <li>
-                <strong>Recopilación:</strong> Solo accedemos a los datos de
-                Google Calendar para crear, leer, modificar y eliminar eventos
-                directamente relacionados con las citas agendadas en Clinesfera.
+                <strong>Qué datos recopilamos:</strong> Accedemos a los eventos
+                y disponibilidad de su Google Calendar para sincronizar las
+                citas creadas en Clinesfera.
               </li>
               <li>
-                <strong>Uso:</strong> Los datos se usan única y exclusivamente
-                para reflejar las citas de los pacientes en el calendario del
-                profesional, previniendo conflictos de horario.
+                <strong>Cómo usamos los datos:</strong> La información se lee y
+                escribe estrictamente para mantener su agenda sincronizada
+                bidireccionalmente. No usamos los datos de Google para entrenar
+                modelos de IA ni extraer información personal ajena al servicio.
               </li>
               <li>
-                <strong>Compartición:</strong> Clinesfera <strong>NO</strong>{" "}
-                comparte, vende ni transfiere sus datos de Google Workspace a
-                terceros bajo ninguna circunstancia. Tampoco utilizamos estos
-                datos para mostrar anuncios publicitarios.
+                <strong>Almacenamiento:</strong> Los tokens de acceso a Google
+                se almacenan de forma segura utilizando encriptación. No
+                compartimos, vendemos ni transferimos sus datos a terceros.
               </li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold text-slate-900 mb-3">
-              3. Retención y Eliminación de Datos
+            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">
+              3. Seguridad y Derechos del Usuario
             </h2>
             <p>
-              Los datos se retienen únicamente mientras su cuenta en Clinesfera
-              esté activa. Usted tiene el derecho a revocar el acceso a su
-              Google Calendar en cualquier momento desde el panel de
-              configuración de la plataforma o directamente desde las
-              configuraciones de seguridad de su cuenta de Google. Al solicitar
-              la eliminación de su cuenta, todos los tokens de acceso y datos
-              clínicos serán eliminados permanentemente de nuestros servidores
-              (alojados en Supabase) en un plazo no mayor a 30 días.
+              Implementamos medidas de seguridad técnicas para proteger su
+              información. Usted puede revocar el acceso a su cuenta de Google
+              en cualquier momento desde su panel de seguridad de Google.
+              Asimismo, tiene derecho a solicitar la eliminación completa de su
+              cuenta y datos asociados en Clinesfera.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold text-slate-900 mb-3">
-              4. Seguridad de la Información
+            <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">
+              4. Contacto
             </h2>
             <p>
-              Implementamos medidas de seguridad estándar de la industria,
-              incluyendo cifrado en tránsito (HTTPS) y en reposo (bases de datos
-              seguras mediante Row Level Security), para proteger sus
-              credenciales y la información de salud de sus pacientes contra el
-              acceso no autorizado.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-2xl font-bold text-slate-900 mb-3">
-              5. Contacto
-            </h2>
-            <p>
-              Si tiene preguntas, inquietudes o desea ejercer sus derechos sobre
-              sus datos, por favor contáctenos directamente a:{" "}
-              <strong>pinedaesteban535@gmail.com</strong>.
+              Para dudas sobre el manejo de sus datos o sobre esta política,
+              contáctenos en: soporte@clinesfera.com
             </p>
           </section>
         </div>
