@@ -36,7 +36,7 @@ const translations = {
         "Construye una red de apoyo y comparte conocimientos junto a la comunidad más avanzada.",
     },
     footer: {
-      copy: "Construido para el futuro de la salud mental. © 2026",
+      copy: "Construido para el futuro de la salud mental. © 2026.", // <-- Aquí añadí un punto para forzar el cambio en Git
       priv: "Privacidad",
     },
   },
@@ -71,7 +71,7 @@ const translations = {
         "Build a support network and share knowledge with the most advanced community.",
     },
     footer: {
-      copy: "Built for the future of mental health. © 2026",
+      copy: "Built for the future of mental health. © 2026.",
       priv: "Privacy",
     },
   },
@@ -98,7 +98,7 @@ const translations = {
       c3Title: "全球连接",
       c3Desc: "建立支持网络并与最先进的社区分享知识。",
     },
-    footer: { copy: "为心理健康的未来而建。 © 2026", priv: "隐私" },
+    footer: { copy: "为心理健康的未来而建。 © 2026.", priv: "隐私" },
   },
   hi: {
     nav: {
@@ -131,7 +131,7 @@ const translations = {
         "एक सहायता नेटवर्क बनाएं और सबसे उन्नत समुदाय के साथ ज्ञान साझा करें।",
     },
     footer: {
-      copy: "मानसिक स्वास्थ्य के भविष्य के लिए निर्मित। © 2026",
+      copy: "मानसिक स्वास्थ्य के भविष्य के लिए निर्मित। © 2026.",
       priv: "गोपनीयता",
     },
   },
@@ -166,7 +166,7 @@ const translations = {
         "Construisez un réseau de soutien et partagez des connaissances avec la communauté.",
     },
     footer: {
-      copy: "Construit pour l'avenir de la santé mentale. © 2026",
+      copy: "Construit pour l'avenir de la santé mentale. © 2026.",
       priv: "Confidentialité",
     },
   },
@@ -197,7 +197,7 @@ const translations = {
       c3Title: "اتصال عالمي",
       c3Desc: "قم ببناء شبكة دعم وتبادل المعرفة مع المجتمع الأكثر تقدمًا.",
     },
-    footer: { copy: "بنيت لمستقبل الصحة النفسية. © 2026", priv: "الخصوصية" },
+    footer: { copy: "بنيت لمستقبل الصحة النفسية. © 2026.", priv: "الخصوصية" },
   },
 };
 
@@ -241,7 +241,7 @@ export default function LandingPage() {
               </svg>
             </div>
             <span className="font-black text-2xl tracking-tighter text-transparent bg-clip-text bg-linear-to-r from-slate-900 to-slate-500 dark:from-white dark:to-gray-400">
-              Lumina
+              Clinesfera
             </span>
           </div>
 
@@ -567,7 +567,7 @@ export default function LandingPage() {
               />
             </svg>
             <span className="font-bold tracking-widest text-sm text-slate-900 dark:text-white">
-              LUMINA / CONNECTED MIND
+              CLINESFERA / CONNECTED MIND
             </span>
           </div>
           <p className="text-slate-500 dark:text-gray-600 text-sm font-light">
