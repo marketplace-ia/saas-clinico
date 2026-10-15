@@ -5,6 +5,17 @@ import { supabase } from "../../lib/supabase";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 
+const RUTAS_PUBLICAS_EXENTAS = [
+  "/privacidad",
+  "/login",
+  "/login-personal",
+  "/registro",
+  "/acceso-personal",
+  "/comunidad",
+  "/proximamente",
+  "/p/",
+];
+
 export default function CaseGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -12,7 +23,13 @@ export default function CaseGuard({ children }: { children: React.ReactNode }) {
   const [cargando, setCargando] = useState(true);
   const [errorCritico, setErrorCritico] = useState<string | null>(null);
 
+  const esRutaPublica =
+    pathname === "/" ||
+    RUTAS_PUBLICAS_EXENTAS.some((ruta) => pathname.startsWith(ruta));
+
   useEffect(() => {
+    if (esRutaPublica) return;
+
     const auditarSaaS = async () => {
       const {
         data: { session },
@@ -68,7 +85,12 @@ export default function CaseGuard({ children }: { children: React.ReactNode }) {
     };
 
     auditarSaaS();
-  }, [router]);
+  }, [router, esRutaPublica]);
+
+  // Si es una ruta pública (como /privacidad), renderiza de inmediato sin bloquear ni redirigir
+  if (esRutaPublica) {
+    return <>{children}</>;
+  }
 
   if (cargando) {
     return (

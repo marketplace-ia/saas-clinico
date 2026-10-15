@@ -286,7 +286,7 @@ export default function LandingPage() {
             </span>
           </Link>
 
-          <nav className="hidden md:flex gap-10 font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">
+          <nav className="hidden md:flex gap-8 font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">
             <a
               href="#soluciones"
               className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
@@ -304,6 +304,12 @@ export default function LandingPage() {
               className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
             >
               {t.nav.convocatorias}
+            </Link>
+            <Link
+              href="/privacidad"
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            >
+              {t.footer.privacy}
             </Link>
           </nav>
 
