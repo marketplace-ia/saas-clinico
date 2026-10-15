@@ -145,7 +145,7 @@ export default function RegistroPage() {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session && session.user?.email) {
         const correoUser = session.user.email;
-        const rolPendiente = localStorage.getItem("lumina_registro_rol");
+        const rolPendiente = localStorage.getItem("Clinesfera_registro_rol");
 
         let rolFinal = "paciente"; // Fallback por defecto
 
@@ -162,7 +162,7 @@ export default function RegistroPage() {
           } catch (e) {
             console.error("Error guardando rol nuevo:", e);
           }
-          localStorage.removeItem("lumina_registro_rol"); // Limpiamos la memoria
+          localStorage.removeItem("Clinesfera_registro_rol"); // Limpiamos la memoria
         } else {
           // Si ya estaba registrado, LEE su rol de la BD (NO lo sobreescribe)
           try {
@@ -206,7 +206,7 @@ export default function RegistroPage() {
 
     try {
       // Guardamos la intención de rol en memoria antes de disparar el registro
-      localStorage.setItem("lumina_registro_rol", tipoCuenta);
+      localStorage.setItem("Clinesfera_registro_rol", tipoCuenta);
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -250,7 +250,7 @@ export default function RegistroPage() {
     }
 
     try {
-      localStorage.setItem("lumina_registro_rol", tipoCuenta);
+      localStorage.setItem("Clinesfera_registro_rol", tipoCuenta);
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",

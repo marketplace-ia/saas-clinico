@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
-import Link from "next/link"; // 🟢 AÑADIDO: Importación vital para enrutamiento
+import Link from "next/link";
 
 interface Paciente {
   id: string;
-  nombre_completo: string;
+  nombres: string;
+  apellidos: string;
+  nombre_completo?: string; // 🟢 Agregamos esto a la interfaz
   email: string;
   telefono: string;
-  estado: string;
-  creado_en: string;
-  fecha_nacimiento: string; // Añadido para consistencia
+  identificacion: string;
+  creado_el: string;
+  fecha_nacimiento: string;
 }
 
 export default function PacientesPage() {
@@ -22,13 +24,16 @@ export default function PacientesPage() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [nuevoPaciente, setNuevoPaciente] = useState({
-    nombre_completo: "",
+    nombres: "",
+    apellidos: "",
+    identificacion: "",
     email: "",
     telefono: "",
     fecha_nacimiento: "",
   });
 
   const cargarPacientes = useCallback(async () => {
+    setCargando(true);
     try {
       const {
         data: { session },
@@ -38,22 +43,44 @@ export default function PacientesPage() {
       const { data, error } = await supabase
         .from("pacientes")
         .select("*")
-        .eq("psicologo_id", session.user.id)
-        .order("nombre_completo", { ascending: true });
+        .order("apellidos", { ascending: true });
 
       if (error) throw error;
-      if (data) setPacientes(data);
-    } catch (error) {
-      console.error("Error cargando pacientes:", error);
+      if (data) setPacientes(data as Paciente[]);
+    } catch (error: unknown) {
+      let errorReal = "Error desconocido";
+      if (error instanceof Error) {
+        errorReal = error.message;
+      } else if (typeof error === "object" && error !== null) {
+        const errObj = error as { message?: string; details?: string };
+        errorReal = errObj.message || errObj.details || JSON.stringify(error);
+      } else {
+        errorReal = String(error);
+      }
+
+      console.error("Error REAL cargando pacientes:", error);
+      alert(`Error de Base de Datos: ${errorReal}`);
     } finally {
       setCargando(false);
     }
   }, []);
 
   useEffect(() => {
-    const inicializar = async () => await cargarPacientes();
+    const inicializar = async () => {
+      await cargarPacientes();
+    };
     inicializar();
   }, [cargarPacientes]);
+
+  useEffect(() => {
+    const manejarAperturaModal = () => {
+      setModalAbierto(true);
+    };
+
+    window.addEventListener("BOT_NUEVO_PACIENTE", manejarAperturaModal);
+    return () =>
+      window.removeEventListener("BOT_NUEVO_PACIENTE", manejarAperturaModal);
+  }, []);
 
   const guardarPaciente = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,43 +92,69 @@ export default function PacientesPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
+      const { data: tu } = await supabase
+        .from("tenant_users")
+        .select("tenant_id")
+        .eq("usuario_id", session.user.id)
+        .single();
+
+      if (!tu) throw new Error("No tienes una clínica asignada.");
+
+      // 🟢 CORRECCIÓN: Fusionamos nombre y apellido para enviar el "nombre_completo"
+      const nombreCompletoArmado = `${nuevoPaciente.nombres.trim()} ${nuevoPaciente.apellidos.trim()}`;
+
       const { error } = await supabase.from("pacientes").insert([
         {
+          tenant_id: tu.tenant_id,
           psicologo_id: session.user.id,
-          nombre_completo: nuevoPaciente.nombre_completo,
+          nombres: nuevoPaciente.nombres,
+          apellidos: nuevoPaciente.apellidos,
+          nombre_completo: nombreCompletoArmado, // 🟢 SOLUCIÓN AL ERROR CONSTRAINT
+          identificacion: nuevoPaciente.identificacion || null,
           email: nuevoPaciente.email || null,
           telefono: nuevoPaciente.telefono || null,
           fecha_nacimiento: nuevoPaciente.fecha_nacimiento || null,
-          estado: "Activo",
         },
       ]);
 
       if (error) throw error;
 
       setNuevoPaciente({
-        nombre_completo: "",
+        nombres: "",
+        apellidos: "",
+        identificacion: "",
         email: "",
         telefono: "",
         fecha_nacimiento: "",
       });
       setModalAbierto(false);
       cargarPacientes();
-    } catch (error) {
-      console.error("Error al guardar paciente:", error);
-      alert("Hubo un error al registrar al paciente.");
+    } catch (error: unknown) {
+      let errorReal = "Error desconocido";
+      if (error instanceof Error) {
+        errorReal = error.message;
+      } else if (typeof error === "object" && error !== null) {
+        const errObj = error as { message?: string; details?: string };
+        errorReal = errObj.message || errObj.details || JSON.stringify(error);
+      } else {
+        errorReal = String(error);
+      }
+
+      console.error("Error REAL guardando paciente:", error);
+      alert(`Error al guardar: ${errorReal}`);
     } finally {
       setGuardando(false);
     }
   };
 
-  // Filtrar pacientes en tiempo real basados en la búsqueda
   const pacientesFiltrados = pacientes.filter((p) =>
-    p.nombre_completo.toLowerCase().includes(busqueda.toLowerCase()),
+    `${p.nombres} ${p.apellidos}`
+      .toLowerCase()
+      .includes(busqueda.toLowerCase()),
   );
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 h-full flex flex-col">
-      {/* CABECERA */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 mb-2">
@@ -132,7 +185,6 @@ export default function PacientesPage() {
         </button>
       </div>
 
-      {/* BARRA DE BÚSQUEDA */}
       <div className="mb-6 relative">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <svg
@@ -151,14 +203,13 @@ export default function PacientesPage() {
         </div>
         <input
           type="text"
-          placeholder="Buscar paciente por nombre..."
+          placeholder="Buscar paciente por nombre o apellido..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-slate-700 shadow-sm"
         />
       </div>
 
-      {/* LISTA DE PACIENTES */}
       {cargando ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -196,21 +247,18 @@ export default function PacientesPage() {
               className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 hover:shadow-md hover:border-indigo-200 transition-all group"
             >
               <div className="flex justify-between items-start">
-                <div className="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-xl font-black">
-                  {paciente.nombre_completo.charAt(0).toUpperCase()}
+                <div className="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-xl font-black uppercase">
+                  {paciente.nombres.charAt(0)}
+                  {paciente.apellidos.charAt(0)}
                 </div>
-                <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${paciente.estado === "Activo" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
-                >
-                  {paciente.estado}
+                <span className="text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider bg-emerald-50 text-emerald-700">
+                  Activo
                 </span>
               </div>
-
               <div>
-                <h3 className="font-black text-xl text-slate-900 mb-3">
-                  {paciente.nombre_completo}
+                <h3 className="font-black text-xl text-slate-900 mb-3 truncate">
+                  {paciente.nombres} {paciente.apellidos}
                 </h3>
-
                 <div className="space-y-2">
                   {paciente.telefono && (
                     <div className="flex items-center gap-3 text-slate-600 text-sm font-medium">
@@ -250,17 +298,14 @@ export default function PacientesPage() {
                   )}
                 </div>
               </div>
-
               <div className="pt-4 mt-auto border-t border-slate-100 flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-400">
                   Ingreso:{" "}
-                  {new Date(paciente.creado_en).toLocaleDateString("es-ES", {
+                  {new Date(paciente.creado_el).toLocaleDateString("es-ES", {
                     month: "short",
                     year: "numeric",
                   })}
                 </span>
-
-                {/* 🟢 CAMBIO VITAL: Botón convertido en Enlace (Link) */}
                 <Link
                   href={`/dashboard-psicologo/pacientes/${paciente.id}`}
                   className="text-indigo-600 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 hover:text-indigo-800"
@@ -286,9 +331,8 @@ export default function PacientesPage() {
         </div>
       )}
 
-      {/* MODAL REGISTRAR PACIENTE */}
       {modalAbierto && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 z-10000 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-2xl font-black text-slate-900">
@@ -313,24 +357,61 @@ export default function PacientesPage() {
                 </svg>
               </button>
             </div>
-
             <form onSubmit={guardarPaciente} className="p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Nombres *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={nuevoPaciente.nombres}
+                    onChange={(e) =>
+                      setNuevoPaciente({
+                        ...nuevoPaciente,
+                        nombres: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-900"
+                    placeholder="Ej. Juan Andrés"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Apellidos *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={nuevoPaciente.apellidos}
+                    onChange={(e) =>
+                      setNuevoPaciente({
+                        ...nuevoPaciente,
+                        apellidos: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-900"
+                    placeholder="Ej. Pérez Silva"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Nombre Completo *
+                  Cédula / Pasaporte
                 </label>
                 <input
                   type="text"
-                  required
-                  value={nuevoPaciente.nombre_completo}
+                  value={nuevoPaciente.identificacion}
                   onChange={(e) =>
                     setNuevoPaciente({
                       ...nuevoPaciente,
-                      nombre_completo: e.target.value,
+                      identificacion: e.target.value,
                     })
                   }
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-900"
-                  placeholder="Ej. Juan Pérez"
+                  placeholder="17xxxxxxxx"
                 />
               </div>
 

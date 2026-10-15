@@ -6,27 +6,37 @@ import Link from "next/link";
 
 interface Cita {
   id: string;
-  psicologo: string;
+  psicologo_id: string;
+  nombre_paciente: string;
   fecha: string;
-  hora: string;
-  motivo: string;
+  hora_inicio: string;
+  hora_fin: string;
+  modalidad: string;
   estado: string;
+  paciente_correo: string;
 }
 
 export default function MisCitasPacientePage() {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [errorTecnico, setErrorTecnico] = useState<string | null>(null);
 
   useEffect(() => {
     const obtenerMisCitas = async () => {
       try {
-        // 1. Saber quién está logueado
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user?.email) return;
 
-        // 2. Traer SOLO las citas de este paciente, ordenadas de la más próxima a la más lejana
+        if (!user?.email) {
+          setErrorTecnico(
+            "No se pudo identificar el correo del usuario logueado.",
+          );
+          setCargando(false);
+          return;
+        }
+
+        // Ahora la consulta sí encontrará la columna "paciente_correo"
         const { data, error } = await supabase
           .from("citas")
           .select("*")
@@ -34,9 +44,21 @@ export default function MisCitasPacientePage() {
           .order("fecha", { ascending: true });
 
         if (error) throw error;
-        if (data) setCitas(data);
+        if (data) setCitas(data as Cita[]);
       } catch (error) {
-        console.error("Error al cargar mis citas:", error);
+        const err = error as {
+          message?: string;
+          details?: string;
+          hint?: string;
+        };
+        const mensajeReal =
+          err?.message ||
+          err?.details ||
+          err?.hint ||
+          (typeof error === "object" ? JSON.stringify(error) : String(error)) ||
+          "Error desconocido en base de datos";
+
+        setErrorTecnico(mensajeReal);
       } finally {
         setCargando(false);
       }
@@ -45,7 +67,6 @@ export default function MisCitasPacientePage() {
     obtenerMisCitas();
   }, []);
 
-  // Función para determinar si una cita es "hoy" (para habilitar el botón de videollamada)
   const esCitaHoy = (fechaCita: string) => {
     const hoy = new Date().toISOString().split("T")[0];
     return fechaCita === hoy;
@@ -55,14 +76,14 @@ export default function MisCitasPacientePage() {
     <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-5xl mx-auto">
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 mb-2">Mis Citas</h1>
-          <p className="text-gray-500">
+          <h1 className="text-3xl font-black text-slate-900 mb-2">Mis Citas</h1>
+          <p className="text-slate-500">
             Administra tus reservas y accede a tus sesiones virtuales.
           </p>
         </div>
         <Link
           href="/dashboard-paciente/agendar"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center justify-center gap-2"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md flex items-center justify-center gap-2"
         >
           <svg
             className="w-5 h-5"
@@ -81,26 +102,53 @@ export default function MisCitasPacientePage() {
         </Link>
       </div>
 
-      {cargando ? (
+      {errorTecnico ? (
+        <div className="bg-red-50 border-2 border-red-200 rounded-3xl p-8 text-center shadow-sm">
+          <div className="text-red-500 mb-4 flex justify-center">
+            <svg
+              className="w-12 h-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              ></path>
+            </svg>
+          </div>
+          <h2 className="text-2xl font-black text-red-700 mb-2">
+            La base de datos bloqueó la consulta
+          </h2>
+          <p className="text-red-600 mb-4 font-medium">
+            Supabase nos devolvió el siguiente detalle exacto:
+          </p>
+          <div className="bg-red-100 text-red-900 p-4 rounded-xl font-mono text-sm wrap-break-word text-left inline-block max-w-full">
+            {errorTecnico}
+          </div>
+        </div>
+      ) : cargando ? (
         <div className="text-center py-20">
-          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 font-bold">
+          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-500 font-bold">
             Cargando tu historial de citas...
           </p>
         </div>
       ) : citas.length === 0 ? (
-        <div className="bg-white border border-dashed border-gray-300 rounded-3xl p-16 text-center shadow-sm">
+        <div className="bg-white border border-dashed border-slate-300 rounded-3xl p-16 text-center shadow-sm">
           <div className="text-6xl mb-4">📅</div>
-          <h2 className="text-2xl font-black text-gray-900 mb-2">
+          <h2 className="text-2xl font-black text-slate-900 mb-2">
             Aún no tienes citas
           </h2>
-          <p className="text-gray-500 mb-8 max-w-md mx-auto">
+          <p className="text-slate-500 mb-8 max-w-md mx-auto">
             Parece que todavía no has programado ninguna sesión con nuestros
             especialistas. ¡Da el primer paso hacia tu bienestar hoy mismo!
           </p>
           <Link
             href="/dashboard-paciente/agendar"
-            className="inline-block bg-blue-50 text-blue-600 font-bold py-3 px-8 rounded-xl transition hover:bg-blue-100"
+            className="inline-block bg-indigo-50 text-indigo-600 font-bold py-3 px-8 rounded-xl transition hover:bg-indigo-100"
           >
             Explorar Especialistas
           </Link>
@@ -113,31 +161,33 @@ export default function MisCitasPacientePage() {
             return (
               <div
                 key={cita.id}
-                className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
+                className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
               >
-                {/* Banner superior de la tarjeta */}
                 <div
-                  className={`p-4 flex justify-between items-center ${esHoy ? "bg-emerald-500" : "bg-gray-50 border-b border-gray-100"}`}
+                  className={`p-4 flex justify-between items-center ${esHoy ? "bg-emerald-500" : "bg-slate-50 border-b border-slate-100"}`}
                 >
                   <span
-                    className={`text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${esHoy ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"}`}
+                    className={`text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${esHoy ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600"}`}
                   >
-                    {esHoy ? "SESIÓN HOY" : "PROGRAMADA"}
+                    {esHoy ? "SESIÓN HOY" : cita.estado}
                   </span>
                   <span
-                    className={`font-black ${esHoy ? "text-white" : "text-gray-900"}`}
+                    className={`font-black ${esHoy ? "text-white" : "text-slate-900"}`}
                   >
                     {cita.fecha}
                   </span>
                 </div>
 
-                {/* Contenido de la cita */}
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">
-                      {cita.psicologo}
+                    <h3 className="text-xl font-bold text-slate-900 mb-1">
+                      Cita {cita.modalidad}
                     </h3>
-                    <p className="text-blue-600 font-black text-lg mb-4 flex items-center gap-2">
+                    <p className="text-sm font-medium text-slate-500 mb-4">
+                      Paciente: {cita.nombre_paciente}
+                    </p>
+
+                    <p className="text-indigo-600 font-black text-lg mb-4 flex items-center gap-2">
                       <svg
                         className="w-5 h-5"
                         fill="none"
@@ -151,23 +201,23 @@ export default function MisCitasPacientePage() {
                           d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                         ></path>
                       </svg>
-                      {cita.hora}
+                      {cita.hora_inicio}{" "}
+                      {cita.hora_fin ? ` - ${cita.hora_fin}` : ""}
                     </p>
 
-                    {cita.motivo && (
-                      <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                          Motivo de consulta
+                    {cita.modalidad && (
+                      <div className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-100">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          Modalidad
                         </p>
-                        <p className="text-gray-700 text-sm italic">
-                          &quot;{cita.motivo}&quot;
+                        <p className="text-slate-700 text-sm font-medium">
+                          {cita.modalidad}
                         </p>
                       </div>
                     )}
                   </div>
 
-                  {/* Botón de acción */}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="mt-4 pt-4 border-t border-slate-100">
                     {esHoy ? (
                       <Link
                         href="/sala-virtual"
@@ -191,7 +241,7 @@ export default function MisCitasPacientePage() {
                     ) : (
                       <button
                         disabled
-                        className="w-full bg-gray-100 text-gray-400 font-bold py-3 rounded-xl cursor-not-allowed flex justify-center items-center gap-2"
+                        className="w-full bg-slate-100 text-slate-400 font-bold py-3 rounded-xl cursor-not-allowed flex justify-center items-center gap-2"
                       >
                         <svg
                           className="w-5 h-5"

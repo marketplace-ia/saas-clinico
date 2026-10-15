@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage, LangType } from "../../context/LanguageContext";
 
@@ -99,46 +98,72 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
-  const router = useRouter();
 
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  // 🛡️ ESCÁNER DE IDENTIDAD AVANZADO
   useEffect(() => {
+    const enrutarUsuario = async (session: { user?: { email?: string } }) => {
+      if (!session?.user?.email) return;
+      const userEmail = session.user.email;
+
+      setCargando(true);
+
+      // 1. Detectar si el usuario viene de la comunidad (Ruta de retorno)
+      const searchParams = new URLSearchParams(window.location.search);
+      const returnTo = searchParams.get("returnTo");
+
+      // 2. PUERTA VIP PARA EL ADMINISTRADOR
+      if (userEmail === "pinedaesteban535@gmail.com") {
+        window.location.href = returnTo || "/admin/verificaciones";
+        return;
+      }
+
+      // 3. ENRUTAMIENTO INTELIGENTE
+      try {
+        const { data } = await supabase
+          .from("roles_usuarios")
+          .select("rol")
+          .eq("correo", userEmail)
+          .maybeSingle();
+
+        let rutaDestino = "/dashboard-paciente";
+
+        if (data && data.rol) {
+          if (data.rol === "psicologo") rutaDestino = "/dashboard-psicologo";
+          else if (data.rol === "secretaria")
+            rutaDestino = "/dashboard-secretaria";
+        }
+
+        // Si el usuario inició sesión desde un lugar específico (ej. Comunidad), se queda ahí.
+        if (returnTo && returnTo.startsWith("/")) {
+          rutaDestino = returnTo;
+        }
+
+        // Navegación forzada para evitar bloqueos del caché de Next.js
+        window.location.href = rutaDestino;
+      } catch (e) {
+        console.error("Error validando rol:", e);
+        window.location.href = returnTo || "/dashboard-paciente";
+      }
+    };
+
+    // Revisar si ya hay sesión al cargar
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) enrutarUsuario(session);
+    });
+
+    // Escuchar el login
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session && session.user?.email) {
-        const userEmail = session.user.email;
-
-        // 1. PUERTA VIP PARA EL ADMINISTRADOR
-        if (userEmail === "pinedaesteban535@gmail.com") {
-          router.push("/admin/verificaciones");
-          return;
-        }
-
-        // 2. ESCÁNER PARA EL RESTO DE USUARIOS
-        try {
-          const { data } = await supabase
-            .from("roles_usuarios")
-            .select("rol")
-            .eq("correo", userEmail)
-            .single();
-
-          if (data && data.rol === "psicologo") {
-            router.push("/dashboard-psicologo");
-          } else {
-            router.push("/dashboard-paciente"); // Fallback a paciente
-          }
-        } catch (e) {
-          console.error("Error validando rol:", e);
-          router.push("/dashboard-paciente"); // Fallback en caso de error
-        }
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        enrutarUsuario(session);
       }
     });
+
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,9 +186,7 @@ export default function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/login`,
-        },
+        options: { redirectTo: `${window.location.origin}/login` },
       });
       if (error) throw error;
     } catch (err: unknown) {
@@ -235,7 +258,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none block w-full px-4 py-3 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                className="appearance-none block w-full px-4 py-3 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="tu@correo.com"
               />
             </div>
@@ -248,7 +271,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none block w-full px-4 py-3 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                className="appearance-none block w-full px-4 py-3 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="••••••••"
               />
             </div>
@@ -278,7 +301,7 @@ export default function LoginPage() {
             <button
               onClick={handleGoogleAuth}
               type="button"
-              className="w-full flex justify-center items-center gap-3 py-3.5 px-4 border border-slate-200 dark:border-white/10 rounded-xl shadow-sm text-sm font-bold text-slate-700 dark:text-gray-300 bg-white dark:bg-[#0a0a0a] hover:bg-slate-50 dark:hover:bg-[#151515] focus:outline-none transition-colors"
+              className="w-full flex justify-center items-center gap-3 py-3.5 px-4 border border-slate-200 dark:border-white/10 rounded-xl shadow-sm text-sm font-bold text-slate-700 dark:text-gray-300 bg-white dark:bg-[#0a0a0a] hover:bg-slate-50 dark:hover:bg-[#151515] transition-colors"
             >
               <svg
                 className="w-5 h-5"

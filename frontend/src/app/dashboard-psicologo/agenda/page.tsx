@@ -1,339 +1,185 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { useRouter } from "next/navigation";
 
 interface Cita {
   id: string;
   nombre_paciente: string;
+  paciente_email?: string;
+  paciente_telefono?: string;
   fecha: string;
   hora_inicio: string;
-  hora_fin: string;
   modalidad: string;
   estado: string;
-  google_event_id?: string;
 }
 
-export default function AgendaPage() {
+export default function AgendaPsicologoPage() {
+  const router = useRouter();
   const [citas, setCitas] = useState<Cita[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [errorTecnico, setErrorTecnico] = useState<string | null>(null);
+  const [fechaSeleccionada, setFechaSeleccionada] = useState<Date>(new Date());
 
-  // Estados para Google Calendar
-  const [googleConectado, setGoogleConectado] = useState(false);
-  const [procesandoGoogle, setProcesandoGoogle] = useState(false);
-
+  // Estados del Modal de Agendamiento
   const [modalAbierto, setModalAbierto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [nuevaCita, setNuevaCita] = useState({
     nombre_paciente: "",
-    fecha: "",
-    hora_inicio: "",
-    hora_fin: "",
-    modalidad: "Presencial",
+    paciente_email: "",
+    paciente_telefono: "",
+    hora_inicio: "09:00",
+    modalidad: "Virtual",
   });
 
+  // Escuchar al Asistente Inteligente para abrir el modal
+  useEffect(() => {
+    const handleOpenModal = () => setModalAbierto(true);
+    window.addEventListener("OPEN_MODAL_NUEVA_CITA", handleOpenModal);
+    return () =>
+      window.removeEventListener("OPEN_MODAL_NUEVA_CITA", handleOpenModal);
+  }, []);
+
   const cargarCitas = useCallback(async () => {
+    setCargando(true);
+    setErrorTecnico(null);
     try {
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("No hay sesión activa");
 
-      // Verificamos si tiene el token de Google activo al cargar
-      if (session.provider_token) {
-        setGoogleConectado(true);
-      }
+      const diaFiltro = fechaSeleccionada.toLocaleDateString("en-CA", {
+        timeZone: "America/Guayaquil",
+      });
 
       const { data, error } = await supabase
         .from("citas")
         .select("*")
-        .eq("psicologo_id", session.user.id)
-        .order("fecha", { ascending: true })
+        .eq("psicologo_id", user.id)
+        .eq("fecha", diaFiltro)
         .order("hora_inicio", { ascending: true });
 
       if (error) throw error;
-      if (data) setCitas(data as Cita[]);
-    } catch (error) {
-      console.error("Error cargando citas:", error);
+      setCitas((data || []) as Cita[]);
+    } catch (error: unknown) {
+      const err = error as { message?: string; details?: string };
+      setErrorTecnico(err?.message || err?.details || String(error));
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [fechaSeleccionada]);
 
+  // 🟢 CORRECCIÓN: Envolvemos la llamada en una función interna asíncrona
   useEffect(() => {
-    // Cápsula asíncrona exigida por React para evitar renders en cascada
-    const inicializarDatos = async () => {
+    const inicializarCitas = async () => {
       await cargarCitas();
     };
-    inicializarDatos();
-
-    // 🟢 RADAR DE SESIÓN: Atrapa la llave de Google en tiempo real
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (session?.provider_token) {
-          setGoogleConectado(true);
-        } else {
-          setGoogleConectado(false);
-        }
-      },
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+    inicializarCitas();
   }, [cargarCitas]);
 
-  // FUNCIONES DE GOOGLE CALENDAR
-  const conectarGoogle = async () => {
-    setProcesandoGoogle(true);
+  const cambiarDia = (dias: number) => {
+    const nuevaFecha = new Date(fechaSeleccionada);
+    nuevaFecha.setDate(nuevaFecha.getDate() + dias);
+    setFechaSeleccionada(nuevaFecha);
+  };
+
+  const cambiarEstadoCita = async (id: string, nuevoEstado: string) => {
     try {
-      await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          scopes: "https://www.googleapis.com/auth/calendar",
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-          redirectTo: `${window.location.origin}/dashboard-psicologo/agenda`,
-        },
-      });
-    } catch (error) {
-      console.error("Error al conectar:", error);
-      setProcesandoGoogle(false);
+      const { error } = await supabase
+        .from("citas")
+        .update({ estado: nuevoEstado })
+        .eq("id", id);
+      if (error) throw error;
+      cargarCitas();
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      alert("Error al actualizar la cita: " + (err?.message || "Desconocido"));
     }
   };
 
-  const desconectarGoogle = async () => {
-    if (
-      !confirm(
-        "¿Estás seguro de desconectar tu Google Calendar? Por seguridad, se cerrará tu sesión y deberás volver a entrar.",
-      )
-    )
-      return;
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.provider_token;
-
-      if (token) {
-        await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        });
-      }
-
-      await supabase.auth.signOut();
-      window.location.href = "/";
-    } catch (error) {
-      console.error("Error al desconectar:", error);
-      alert("Hubo un problema al intentar desconectar.");
-    }
-  };
-
-  // FUNCIÓN PARA AGENDAR
-  const agendarCita = async (e: React.FormEvent) => {
+  const handleAgendarCita = async (e: React.FormEvent) => {
     e.preventDefault();
     setGuardando(true);
+    setErrorTecnico(null);
 
     try {
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sesión inválida");
 
-      let googleId = null;
-      const googleToken = session.provider_token;
+      // Buscar el tenant_id del psicólogo para aislar los datos correctamente
+      const { data: tu } = await supabase
+        .from("tenant_users")
+        .select("tenant_id")
+        .eq("usuario_id", user.id)
+        .single();
 
-      if (!googleToken) {
-        // Guardado local sin Google (Falla silenciosa si no hay token)
-      } else {
-        try {
-          const horaInicioCompleta =
-            nuevaCita.hora_inicio.length === 5
-              ? `${nuevaCita.hora_inicio}:00`
-              : nuevaCita.hora_inicio;
-          const horaFinCompleta =
-            nuevaCita.hora_fin.length === 5
-              ? `${nuevaCita.hora_fin}:00`
-              : nuevaCita.hora_fin;
+      // Calcular hora de fin aproximada (+1 hora)
+      const horaInicioObj = new Date(`2000-01-01T${nuevaCita.hora_inicio}`);
+      horaInicioObj.setHours(horaInicioObj.getHours() + 1);
+      const hora_fin = horaInicioObj.toTimeString().split(" ")[0];
 
-          const eventoGoogle = {
-            summary: `Cita: ${nuevaCita.nombre_paciente}`,
-            description: `Modalidad: ${nuevaCita.modalidad} - Agendado desde Clinesfera`,
-            start: {
-              dateTime: `${nuevaCita.fecha}T${horaInicioCompleta}`,
-              timeZone: "America/Guayaquil",
-            },
-            end: {
-              dateTime: `${nuevaCita.fecha}T${horaFinCompleta}`,
-              timeZone: "America/Guayaquil",
-            },
-          };
+      const diaFiltro = fechaSeleccionada.toLocaleDateString("en-CA", {
+        timeZone: "America/Guayaquil",
+      });
 
-          const res = await fetch(
-            "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${googleToken}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(eventoGoogle),
-            },
-          );
+      const payload = {
+        tenant_id: tu?.tenant_id || null,
+        psicologo_id: user.id,
+        nombre_paciente: nuevaCita.nombre_paciente,
+        paciente_correo: nuevaCita.paciente_email,
+        paciente_telefono: nuevaCita.paciente_telefono,
+        fecha: diaFiltro,
+        hora_inicio: nuevaCita.hora_inicio,
+        hora_fin: hora_fin,
+        modalidad: nuevaCita.modalidad,
+        estado: "confirmed",
+      };
 
-          if (res.ok) {
-            const googleData = await res.json();
-            googleId = googleData.id;
-          } else {
-            const errorData = await res.json();
-            console.error("Error completo de Google:", errorData);
-            alert(
-              `⚠️ GOOGLE RECHAZÓ LA CITA.\nMotivo: "${errorData.error?.message}"\nRevisa tus permisos.`,
-            );
-          }
-        } catch (err) {
-          console.error("Error con la petición de Google Calendar:", err);
-        }
-      }
-
-      const { error } = await supabase.from("citas").insert([
-        {
-          psicologo_id: session.user.id,
-          nombre_paciente: nuevaCita.nombre_paciente,
-          fecha: nuevaCita.fecha,
-          hora_inicio: nuevaCita.hora_inicio,
-          hora_fin: nuevaCita.hora_fin,
-          modalidad: nuevaCita.modalidad,
-          estado: "Programada",
-          google_event_id: googleId,
-        },
-      ]);
+      const { error } = await supabase.from("citas").insert([payload]);
 
       if (error) throw error;
 
+      setModalAbierto(false);
       setNuevaCita({
         nombre_paciente: "",
-        fecha: "",
-        hora_inicio: "",
-        hora_fin: "",
-        modalidad: "Presencial",
+        paciente_email: "",
+        paciente_telefono: "",
+        hora_inicio: "09:00",
+        modalidad: "Virtual",
       });
-      setModalAbierto(false);
       cargarCitas();
-    } catch (error) {
-      console.error("Error al agendar:", error);
-      alert("Hubo un error al guardar la cita en la base de datos.");
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      setErrorTecnico(err?.message || "Error al agendar la cita.");
     } finally {
       setGuardando(false);
     }
   };
 
-  const eliminarCita = async (id: string, googleEventId?: string) => {
-    if (!confirm("¿Estás seguro de cancelar esta cita?")) return;
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const googleToken = session?.provider_token;
-
-      if (googleToken && googleEventId) {
-        await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${googleToken}` },
-          },
-        );
-      }
-      const { error } = await supabase.from("citas").delete().eq("id", id);
-      if (error) throw error;
-      cargarCitas();
-    } catch (error) {
-      console.error("Error eliminando cita:", error);
-    }
-  };
-
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto animate-in fade-in duration-500 h-full flex flex-col">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+    <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-6xl mx-auto pb-20 relative">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 border-b border-slate-200 pb-8">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 mb-2">Mi Agenda</h1>
+          <h1 className="text-3xl font-black text-slate-900 mb-2">
+            Mi Agenda de Sesiones
+          </h1>
           <p className="text-slate-500 font-medium">
-            Controla tu tiempo y tus sesiones con pacientes.
+            Gestiona tus citas diarias y revisa la disponibilidad de pacientes.
           </p>
         </div>
-        <button
-          onClick={() => setModalAbierto(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center gap-2"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          Nueva Cita
-        </button>
-      </div>
 
-      {/* ========================================= */}
-      {/* SECCIÓN VIP: BANNERS DE GOOGLE CALENDAR  */}
-      {/* ========================================= */}
-
-      {!cargando && !googleConectado && (
-        <div className="bg-linear-to-r from-indigo-600 via-purple-600 to-indigo-800 rounded-3xl p-6 md:p-8 mb-8 shadow-lg text-white flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-white opacity-10 blur-2xl"></div>
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-32 h-32 rounded-full bg-white opacity-10 blur-xl"></div>
-
-          <div className="flex items-center gap-5 relative z-10">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm shadow-inner shrink-0">
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-2xl shadow-sm">
+            <button
+              onClick={() => cambiarDia(-1)}
+              className="p-3 hover:bg-slate-50 rounded-xl transition-colors text-slate-500"
+            >
               <svg
-                className="w-8 h-8 text-white"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-2xl font-black mb-1">
-                ¡Sincroniza tu Google Calendar!
-              </h3>
-              <p className="text-indigo-100 font-medium max-w-lg">
-                Evita cruces de horarios. Conecta tu cuenta y tus citas se
-                guardarán automáticamente en tu calendario personal con
-                recordatorios.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={conectarGoogle}
-            disabled={procesandoGoogle}
-            className="w-full md:w-auto relative z-10 bg-white text-indigo-600 font-black px-8 py-4 rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-70 disabled:hover:scale-100"
-          >
-            {procesandoGoogle ? "Conectando..." : "Vincular Cuenta de Google"}
-          </button>
-        </div>
-      )}
-
-      {!cargando && googleConectado && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
-          <div className="flex items-center gap-4">
-            <div className="bg-emerald-100 p-3 rounded-xl">
-              <svg
-                className="w-6 h-6 text-emerald-600"
+                className="w-5 h-5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -341,43 +187,52 @@ export default function AgendaPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  strokeWidth={2.5}
+                  d="M15 19l-7-7 7-7"
                 />
               </svg>
-            </div>
-            <div>
-              <h3 className="text-emerald-900 font-black text-lg">
-                Google Calendar Sincronizado
-              </h3>
-              <p className="text-emerald-700 font-medium text-sm">
-                Tus citas se están respaldando en tiempo real en tu calendario
-                personal.
+            </button>
+            <div className="text-center min-w-40 px-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {fechaSeleccionada.toLocaleDateString("es-ES", {
+                  weekday: "long",
+                  timeZone: "America/Guayaquil",
+                })}
+              </p>
+              <p className="text-base font-black text-slate-900">
+                {fechaSeleccionada.toLocaleDateString("es-ES", {
+                  day: "numeric",
+                  month: "long",
+                  timeZone: "America/Guayaquil",
+                })}
               </p>
             </div>
+            <button
+              onClick={() => cambiarDia(1)}
+              className="p-3 hover:bg-slate-50 rounded-xl transition-colors text-slate-500"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
           </div>
+
           <button
-            onClick={desconectarGoogle}
-            className="text-red-500 hover:bg-red-50 px-5 py-2.5 rounded-xl font-bold text-sm transition-colors border border-transparent hover:border-red-100"
+            onClick={() => setModalAbierto(true)}
+            className="bg-slate-900 hover:bg-indigo-600 text-white font-black px-6 py-3.5 rounded-2xl transition-all shadow-md flex items-center gap-2 w-full sm:w-auto justify-center"
           >
-            Desconectar Calendario
-          </button>
-        </div>
-      )}
-
-      {/* ========================================= */}
-      {/* FIN SECCIÓN VIP */}
-      {/* ========================================= */}
-
-      {cargando ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-        </div>
-      ) : citas.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center bg-white border border-dashed border-slate-300 rounded-3xl p-12 text-center">
-          <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
             <svg
-              className="w-10 h-10 text-indigo-400"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -385,33 +240,169 @@ export default function AgendaPage() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth={2}
+                strokeWidth={2.5}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Nueva Cita
+          </button>
+        </div>
+      </div>
+
+      {errorTecnico && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-700 shadow-sm font-medium mb-6">
+          <strong>Error de Sistema:</strong> {errorTecnico}
+        </div>
+      )}
+
+      {cargando ? (
+        <div className="text-center py-20">
+          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">
+            Cargando Agenda...
+          </p>
+        </div>
+      ) : citas.length === 0 ? (
+        <div className="bg-white rounded-3xl p-16 text-center shadow-sm border border-slate-200">
+          <div className="w-20 h-20 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg
+              className="w-10 h-10"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
               />
             </svg>
           </div>
-          <h3 className="text-xl font-bold text-slate-700 mb-2">
+          <h2 className="text-2xl font-black text-slate-900 mb-2">
             Tu agenda está libre
-          </h3>
-          <p className="text-slate-500 max-w-sm">
-            No tienes citas programadas. Haz clic en &quot;Nueva Cita&quot; para
-            empezar a agendar.
+          </h2>
+          <p className="text-slate-500 font-medium max-w-md mx-auto">
+            No hay citas programadas para esta fecha.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {citas.map((cita) => (
-            <div
-              key={cita.id}
-              className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 hover:shadow-md transition-shadow group relative"
-            >
-              <button
-                onClick={() => eliminarCita(cita.id, cita.google_event_id)}
-                className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 bg-white rounded-full p-1 shadow-sm border border-slate-100"
-                title="Cancelar Cita"
-              >
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 text-xs border-b border-slate-100">
+                  <th className="p-5 font-black uppercase tracking-wider">
+                    Hora
+                  </th>
+                  <th className="p-5 font-black uppercase tracking-wider">
+                    Paciente
+                  </th>
+                  <th className="p-5 font-black uppercase tracking-wider">
+                    Modalidad
+                  </th>
+                  <th className="p-5 font-black uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="p-5 font-black uppercase tracking-wider text-right">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {citas.map((cita) => {
+                  const horaFormateada = cita.hora_inicio
+                    ? cita.hora_inicio.slice(0, 5)
+                    : "00:00";
+                  return (
+                    <tr
+                      key={cita.id}
+                      className="hover:bg-slate-50/50 transition-colors group"
+                    >
+                      <td className="p-5">
+                        <div className="text-xl font-black text-indigo-900">
+                          {horaFormateada}
+                        </div>
+                      </td>
+                      <td className="p-5">
+                        <div className="font-bold text-slate-900 text-base">
+                          {cita.nombre_paciente}
+                        </div>
+                        <div className="text-xs text-slate-500 font-medium mt-0.5">
+                          {cita.paciente_telefono ||
+                            cita.paciente_email ||
+                            "Sin contacto registrado"}
+                        </div>
+                      </td>
+                      <td className="p-5">
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase px-3 py-1 rounded-md">
+                          {cita.modalidad}
+                        </span>
+                      </td>
+                      <td className="p-5">
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                            cita.estado === "confirmed" ||
+                            cita.estado === "Programada"
+                              ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                              : cita.estado === "requested"
+                                ? "bg-amber-100 text-amber-700 border border-amber-200"
+                                : "bg-rose-100 text-rose-700 border border-rose-200 opacity-50 line-through"
+                          }`}
+                        >
+                          {cita.estado === "confirmed"
+                            ? "Confirmada"
+                            : cita.estado}
+                        </span>
+                      </td>
+                      <td className="p-5 text-right space-x-2">
+                        {(cita.estado === "confirmed" ||
+                          cita.estado === "Programada") && (
+                          <div className="flex justify-end gap-2">
+                            {(cita.modalidad.toLowerCase() === "online" ||
+                              cita.modalidad.toLowerCase() === "virtual" ||
+                              cita.modalidad.toLowerCase() ===
+                                "teleconsulta") && (
+                              <button
+                                onClick={() =>
+                                  router.push(
+                                    "/dashboard-psicologo/teleconsulta/" +
+                                      cita.id,
+                                  )
+                                }
+                                className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-xl text-xs font-black shadow-sm transition-colors flex items-center gap-2"
+                              >
+                                Iniciar Videollamada
+                              </button>
+                            )}
+                            <button
+                              onClick={() =>
+                                cambiarEstadoCita(cita.id, "cancelled")
+                              }
+                              className="bg-white hover:bg-red-50 text-red-600 border border-slate-200 hover:border-red-200 px-3 py-2 rounded-xl text-xs font-bold transition-colors"
+                            >
+                              ✕ Anular
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AGENDAR NUEVA CITA */}
+      {modalAbierto && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
+              <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
                 <svg
-                  className="w-5 h-5"
+                  className="w-5 h-5 text-indigo-600"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -420,80 +411,14 @@ export default function AgendaPage() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-              </button>
-
-              <div className="flex justify-between items-start pr-8">
-                <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${cita.modalidad === "Online" ? "bg-blue-50 text-blue-700" : "bg-emerald-50 text-emerald-700"}`}
-                >
-                  {cita.modalidad}
-                </span>
-                <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
-                  {cita.estado}
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-black text-xl text-slate-900 mb-1">
-                  {cita.nombre_paciente}
-                </h3>
-                <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
-                  <svg
-                    className="w-4 h-4 text-indigo-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  {new Date(cita.fecha).toLocaleDateString("es-ES", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </div>
-                <div className="flex items-center gap-2 text-slate-600 font-medium text-sm mt-1">
-                  <svg
-                    className="w-4 h-4 text-indigo-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  {cita.hora_inicio.slice(0, 5)} - {cita.hora_fin.slice(0, 5)}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Modales... */}
-      {modalAbierto && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-              <h2 className="text-2xl font-black text-slate-900">
-                Agendar Cita
+                Agendar Nueva Cita
               </h2>
               <button
                 onClick={() => setModalAbierto(false)}
-                className="text-slate-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm"
+                className="text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <svg
                   className="w-6 h-6"
@@ -511,10 +436,22 @@ export default function AgendaPage() {
               </button>
             </div>
 
-            <form onSubmit={agendarCita} className="p-6 space-y-5">
+            <form onSubmit={handleAgendarCita} className="p-6 space-y-5">
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-indigo-800 text-xs font-bold flex justify-between items-center">
+                <span>Fecha seleccionada:</span>
+                <span className="uppercase tracking-wider">
+                  {fechaSeleccionada.toLocaleDateString("es-ES", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                    timeZone: "America/Guayaquil",
+                  })}
+                </span>
+              </div>
+
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Paciente *
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Nombre del Paciente
                 </label>
                 <input
                   type="text"
@@ -526,30 +463,52 @@ export default function AgendaPage() {
                       nombre_paciente: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-slate-900"
-                  placeholder="Ej. María López"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Fecha *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={nuevaCita.fecha}
-                  onChange={(e) =>
-                    setNuevaCita({ ...nuevaCita, fecha: e.target.value })
-                  }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 font-medium"
+                  placeholder="Ej. Carlos Mendoza"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Hora Inicio *
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Teléfono
+                  </label>
+                  <input
+                    type="tel"
+                    value={nuevaCita.paciente_telefono}
+                    onChange={(e) =>
+                      setNuevaCita({
+                        ...nuevaCita,
+                        paciente_telefono: e.target.value,
+                      })
+                    }
+                    placeholder="Opcional"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Correo
+                  </label>
+                  <input
+                    type="email"
+                    value={nuevaCita.paciente_email}
+                    onChange={(e) =>
+                      setNuevaCita({
+                        ...nuevaCita,
+                        paciente_email: e.target.value,
+                      })
+                    }
+                    placeholder="Opcional"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Hora de Inicio
                   </label>
                   <input
                     type="time"
@@ -561,51 +520,43 @@ export default function AgendaPage() {
                         hora_inicio: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 font-medium"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Hora Fin *
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Modalidad
                   </label>
-                  <input
-                    type="time"
-                    required
-                    value={nuevaCita.hora_fin}
+                  <select
+                    value={nuevaCita.modalidad}
                     onChange={(e) =>
-                      setNuevaCita({ ...nuevaCita, hora_fin: e.target.value })
+                      setNuevaCita({ ...nuevaCita, modalidad: e.target.value })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 font-medium"
-                  />
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  >
+                    <option value="Virtual">Virtual</option>
+                    <option value="Presencial">Presencial</option>
+                  </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Modalidad
-                </label>
-                <select
-                  value={nuevaCita.modalidad}
-                  onChange={(e) =>
-                    setNuevaCita({ ...nuevaCita, modalidad: e.target.value })
-                  }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 font-bold"
+              <div className="pt-4 mt-4 border-t border-slate-100 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModalAbierto(false)}
+                  className="w-full px-4 py-3 font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
                 >
-                  <option value="Presencial">Presencial (Consultorio)</option>
-                  <option value="Online">Online (Videollamada)</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-slate-100">
+                  Cancelar
+                </button>
                 <button
                   type="submit"
                   disabled={guardando}
-                  className="w-full px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center"
+                  className="w-full bg-slate-900 hover:bg-indigo-600 text-white font-black py-3 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {guardando ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    "Confirmar Cita"
+                    "Guardar Cita"
                   )}
                 </button>
               </div>

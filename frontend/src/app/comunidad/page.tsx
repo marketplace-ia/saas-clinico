@@ -1,222 +1,197 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useLanguage, LangType } from "../../context/LanguageContext";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "../../../lib/supabase";
 
-interface TranslationInterface {
-  back: string;
-  login: string;
-  tag: string;
-  sidebar: {
-    title: string;
-    global: string;
-    courses: string;
-    pros: string;
-    students: string;
-  };
-  main: {
-    welcome: string;
-    desc: string;
-    btn: string;
-    empty: string;
-    emptyDesc: string;
-    alert: string;
-  };
+interface Taller {
+  id: string;
+  titulo: string;
+  fecha_hora: string;
+  modalidad: string;
+  precio: number;
 }
 
-const translations: Record<LangType, TranslationInterface> = {
-  es: {
-    back: "Volver",
-    login: "Iniciar Sesión",
-    tag: "Aprende • Conecta • Crece",
-    sidebar: {
-      title: "Explorar Comunidad",
-      global: "Muro Global",
-      courses: "Cursos",
-      pros: "Profesionales",
-      students: "Estudiantes",
-    },
-    main: {
-      welcome: "Bienvenido al ecosistema.",
-      desc: "Un portal integral diseñado para buscar, aprender y mejorar la salud mental.",
-      btn: "Crear Publicación",
-      empty: "No hay publicaciones",
-      emptyDesc: "Sé el primero en iniciar una conversación.",
-      alert: "Debes iniciar sesión para publicar.",
-    },
-  },
-  en: {
-    back: "Back",
-    login: "Log In",
-    tag: "Learn • Connect • Grow",
-    sidebar: {
-      title: "Explore",
-      global: "Global Wall",
-      courses: "Courses",
-      pros: "Professionals",
-      students: "Students",
-    },
-    main: {
-      welcome: "Welcome to the ecosystem.",
-      desc: "A comprehensive portal designed to learn and improve mental health.",
-      btn: "Create Post",
-      empty: "No posts yet",
-      emptyDesc: "Be the first to start a conversation.",
-      alert: "You must log in to post.",
-    },
-  },
-  zh: {
-    back: "返回",
-    login: "登录",
-    tag: "学习 • 连接 • 成长",
-    sidebar: {
-      title: "探索社区",
-      global: "全球墙",
-      courses: "课程",
-      pros: "专业人士",
-      students: "学生区",
-    },
-    main: {
-      welcome: "欢迎来到生态系统。",
-      desc: "一个为学习和改善心理健康设计的综合门户。",
-      btn: "创建帖子",
-      empty: "暂无帖子",
-      emptyDesc: "成为第一个发起对话的人。",
-      alert: "您必须登录才能发帖。",
-    },
-  },
-  hi: {
-    back: "वापस",
-    login: "लॉग इन",
-    tag: "सीखें • जुड़ें • बढ़ें",
-    sidebar: {
-      title: "अन्वेषण करें",
-      global: "ग्लोबल वॉल",
-      courses: "पाठ्यक्रम",
-      pros: "पेशेवर",
-      students: "छात्र",
-    },
-    main: {
-      welcome: "पारिस्थितिकी तंत्र में आपका स्वागत है।",
-      desc: "मानसिक स्वास्थ्य को सीखने और सुधारने के लिए डिज़ाइन किया गया एक पोर्टल।",
-      btn: "पोस्ट बनाएं",
-      empty: "कोई पोस्ट नहीं",
-      emptyDesc: "बातचीत शुरू करने वाले पहले व्यक्ति बनें।",
-      alert: "पोस्ट करने के लिए लॉग इन करें।",
-    },
-  },
-  fr: {
-    back: "Retour",
-    login: "Connexion",
-    tag: "Apprendre • Connecter • Grandir",
-    sidebar: {
-      title: "Explorer",
-      global: "Mur Global",
-      courses: "Cours",
-      pros: "Professionnels",
-      students: "Étudiants",
-    },
-    main: {
-      welcome: "Bienvenue dans l'écosystème.",
-      desc: "Un portail complet conçu pour apprendre et améliorer la santé mentale.",
-      btn: "Créer une publication",
-      empty: "Aucune publication",
-      emptyDesc: "Soyez le premier à lancer une conversation.",
-      alert: "Vous devez vous connecter pour publier.",
-    },
-  },
-  ar: {
-    back: "العودة",
-    login: "تسجيل الدخول",
-    tag: "تعلم • تواصل • انمو",
-    sidebar: {
-      title: "استكشاف",
-      global: "الجدار العالمي",
-      courses: "دورات",
-      pros: "محترفون",
-      students: "طلاب",
-    },
-    main: {
-      welcome: "مرحبًا بك في النظام البيئي.",
-      desc: "بوابة شاملة مصممة للتعلم وتحسين الصحة العقلية.",
-      btn: "إنشاء منشور",
-      empty: "لا توجد منشورات",
-      emptyDesc: "كن الأول في بدء محادثة.",
-      alert: "يجب عليك تسجيل الدخول للنشر.",
-    },
-  },
-};
+interface PostComunidad {
+  id: string;
+  titulo: string;
+  contenido: string;
+  creado_el: string;
+  perfil_psicologo: { nombre_completo: string } | null;
+}
 
-const idiomasDisponibles = [
-  { code: "es", flag: "🇪🇸", label: "Español" },
-  { code: "en", flag: "🇺🇸", label: "English" },
-  { code: "fr", flag: "🇫🇷", label: "Français" },
-  { code: "zh", flag: "🇨🇳", label: "中文" },
-  { code: "hi", flag: "🇮🇳", label: "हिन्दी" },
-  { code: "ar", flag: "🇸🇦", label: "العربية" },
-];
+interface RawPost {
+  id: string;
+  titulo: string;
+  contenido: string;
+  creado_el: string;
+}
 
-export default function ComunidadPortalPage() {
-  const [filtroActivo, setFiltroActivo] = useState("todos");
-  const [menuIdiomas, setMenuIdiomas] = useState(false);
-  const { lang, setLang, isRtl } = useLanguage();
-  const t = translations[lang];
+// 🟢 BARO NGA INTERFACE: Para iti Artikulo a naggapu iti DB
+interface Articulo {
+  id: string;
+  titulo: string;
+  autor: string;
+  categoria: string;
+  tiempo_lectura: string;
+  imagen_color: string;
+  creado_el: string;
+}
 
-  const foros = [
-    {
-      id: 1,
-      autor: "Dra. Elena Silva",
-      rol: "Profesional",
-      tiempo: "2h",
-      titulo: "Nuevos enfoques en Terapia Cognitivo Conductual para 2026",
-      respuestas: 14,
-      likes: 32,
-      tag: "Debate Clínico",
-      color: "bg-purple-100 text-purple-700",
-      categoria: "profesionales",
-    },
-    {
-      id: 2,
-      autor: "Carlos M.",
-      rol: "Estudiante",
-      tiempo: "5h",
-      titulo: "¿Algún consejo para mi primera práctica pre-profesional?",
-      respuestas: 8,
-      likes: 15,
-      tag: "Academia",
-      color: "bg-blue-100 text-blue-700",
-      categoria: "estudiantes",
-    },
-    {
-      id: 3,
-      autor: "Equipo PsiEduca",
-      rol: "Oficial",
-      tiempo: "1d",
-      titulo: "Taller Gratuito: Primeros Auxilios Psicológicos en crisis",
-      respuestas: 45,
-      likes: 120,
-      tag: "Eventos",
-      color: "bg-teal-100 text-teal-700",
-      categoria: "psieduca",
-    },
-  ];
+export default function ComunidadExplorarPage() {
+  const [cargando, setCargando] = useState(true);
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [publicando, setPublicando] = useState(false);
 
-  const forosFiltrados = foros.filter((foro) =>
-    filtroActivo === "todos" ? true : foro.categoria === filtroActivo,
-  );
+  const [eventos, setEventos] = useState<Taller[]>([]);
+  const [conversaciones, setConversaciones] = useState<PostComunidad[]>([]);
+
+  // 🟢 KINIKKAT TI HARDCODED STATE: Ita ket maysa a nadalus nga awan linaonna nga array
+  const [articulos, setArticulos] = useState<Articulo[]>([]);
+
+  const [nuevoDebate, setNuevoDebate] = useState({
+    pregunta: "",
+    tag: "Debate Clínico",
+  });
+
+  const cargarDatos = useCallback(async () => {
+    setCargando(true);
+    try {
+      // 1. Kargaen dagiti Artikulo
+      const { data: dataArticulos } = await supabase
+        .from("articulos_comunidad")
+        .select("*")
+        .order("creado_el", { ascending: false })
+        .limit(2);
+
+      if (dataArticulos) setArticulos(dataArticulos);
+
+      // 2. Kargaen dagiti Pasken
+      const { data: dataEventos } = await supabase
+        .from("talleres")
+        .select("id, titulo, fecha_hora, modalidad, precio")
+        .eq("estado", "activo")
+        .order("fecha_hora", { ascending: true })
+        .limit(3);
+
+      if (dataEventos) setEventos(dataEventos);
+
+      // 3. Kargaen dagiti Post iti Komunidad
+      const { data: dataPosts } = await supabase
+        .from("comunidad_posts")
+        .select("id, titulo, contenido, creado_el")
+        .eq("estado", "publicado")
+        .order("creado_el", { ascending: false });
+
+      if (dataPosts) {
+        const postsFormateados = dataPosts.map((p: RawPost) => ({
+          ...p,
+          perfil_psicologo: { nombre_completo: "Miembro de la Comunidad" },
+        }));
+        setConversaciones(postsFormateados as PostComunidad[]);
+      }
+    } catch (error) {
+      console.error("Error cargando comunidad:", error);
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const iniciar = async () => {
+      await cargarDatos();
+    };
+    iniciar();
+  }, [cargarDatos]);
+
+  const handlePublicarDebate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPublicando(true);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        alert("Debes iniciar sesión para publicar en la comunidad.");
+        return;
+      }
+
+      const { data: tu } = await supabase
+        .from("tenant_users")
+        .select("tenant_id")
+        .eq("usuario_id", session.user.id)
+        .single();
+
+      if (!tu) {
+        alert("Solo los profesionales pueden abrir debates actualmente.");
+        return;
+      }
+
+      const { error } = await supabase.from("comunidad_posts").insert({
+        tenant_id: tu.tenant_id,
+        psicologo_id: session.user.id,
+        titulo: nuevoDebate.tag,
+        contenido: nuevoDebate.pregunta,
+        estado: "publicado",
+      });
+
+      if (error) throw error;
+
+      setModalAbierto(false);
+      setNuevoDebate({ pregunta: "", tag: "Debate Clínico" });
+      cargarDatos();
+    } catch (error) {
+      console.error("Error al publicar:", error);
+      alert("Hubo un error al publicar tu debate.");
+    } finally {
+      setPublicando(false);
+    }
+  };
+
+  if (cargando)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      </div>
+    );
 
   return (
-    <div
-      dir={isRtl ? "rtl" : "ltr"}
-      className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 transition-colors duration-300"
-    >
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-linear-to-br from-indigo-900 via-purple-700 to-teal-500 rounded-xl flex items-center justify-center shadow-md">
+    <div className="w-full animate-in fade-in duration-700 slide-in-from-bottom-4 space-y-16 pb-12">
+      <section className="relative bg-slate-900 rounded-4xl p-10 md:p-16 lg:p-20 overflow-hidden shadow-2xl flex flex-col md:flex-row items-center justify-between gap-10">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-linear-to-br from-indigo-500/30 to-purple-600/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-teal-500/20 rounded-full blur-[60px] translate-y-1/2 -translate-x-1/2"></div>
+
+        <div className="relative z-10 max-w-2xl">
+          <span className="inline-block px-4 py-1.5 bg-white/10 text-indigo-200 text-xs font-black uppercase tracking-widest rounded-full backdrop-blur-md border border-white/10 mb-6">
+            Ecosistema Profesional
+          </span>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] mb-6 tracking-tight">
+            Conecta. Aprende. <br />
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-indigo-400 to-teal-300">
+              Comparte conocimiento.
+            </span>
+          </h1>
+          <p className="text-slate-300 text-lg md:text-xl font-medium mb-10 max-w-xl leading-relaxed">
+            Una comunidad diseñada para profesionales, estudiantes y mentes
+            curiosas interesadas en comprender mejor el comportamiento humano y
+            el bienestar.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <Link
+              href="/comunidad/articulos"
+              className="bg-white hover:bg-slate-50 text-slate-900 font-black px-8 py-4 rounded-2xl shadow-xl transition-all hover:-translate-y-1 text-center"
+            >
+              Explorar Artículos
+            </Link>
+            <Link
+              href="/comunidad/grupos"
+              className="bg-purple-600/20 hover:bg-purple-600/40 text-purple-100 border border-purple-500/30 font-bold px-6 py-4 rounded-2xl backdrop-blur-md transition-all flex items-center gap-2"
+            >
               <svg
-                className="w-6 h-6 text-white"
+                className="w-5 h-5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -225,183 +200,281 @@ export default function ComunidadPortalPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
-            </div>
-            <div>
-              <h1 className="font-black text-2xl tracking-tight text-indigo-950">
-                Connected<span className="text-teal-600">Mind</span>
-              </h1>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest hidden md:block">
-                {t.tag}
-              </p>
-            </div>
+              Grupos
+            </Link>
+            <Link
+              href="/comunidad/convocatorias"
+              className="bg-teal-600/20 hover:bg-teal-600/40 text-teal-100 border border-teal-500/30 font-bold px-6 py-4 rounded-2xl backdrop-blur-md transition-all flex items-center gap-2"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              Convocatorias
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* 🟢 SECCIÓN DE LECTURAS (Dinamikoon a naggapu iti DB) */}
+      <section>
+        <div className="flex justify-between items-end mb-8">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-2">
+              Lecturas Recomendadas
+            </h2>
+            <p className="text-slate-500 font-medium">
+              Artículos clínicos y divulgativos tendencia.
+            </p>
+          </div>
+        </div>
+
+        {articulos.length === 0 ? (
+          <div className="text-center py-10 bg-white rounded-3xl border border-slate-100">
+            <p className="text-slate-500 font-medium">
+              Nuevos artículos próximamente.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {articulos.map((art) => (
+              <div
+                key={art.id}
+                className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 group flex flex-col sm:flex-row gap-6 cursor-pointer"
+              >
+                <div
+                  className={`w-full sm:w-40 h-48 sm:h-auto rounded-2xl ${art.imagen_color || "bg-slate-100"} shrink-0`}
+                ></div>
+                <div className="flex flex-col flex-1 py-1">
+                  <span className="text-xs font-black text-indigo-600 uppercase tracking-wider mb-2">
+                    {art.categoria}
+                  </span>
+                  <h3 className="text-xl font-black text-slate-900 mb-3 leading-snug group-hover:text-indigo-600 transition-colors">
+                    {art.titulo}
+                  </h3>
+                  <div className="mt-auto flex items-center gap-3 pt-4 border-t border-slate-50">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 uppercase">
+                      {art.autor.charAt(0)}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-900">
+                        {art.autor}
+                      </span>
+                      <span className="text-xs font-medium text-slate-400">
+                        {new Date(art.creado_el).toLocaleDateString("es-ES", {
+                          month: "short",
+                          day: "numeric",
+                        })}{" "}
+                        · {art.tiempo_lectura}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <section className="lg:col-span-1 bg-slate-50 rounded-4xl p-8 border border-slate-100 h-fit">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-xl font-black text-slate-900">
+              Próximos Eventos
+            </h2>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* BOTÓN DESPLEGABLE DE IDIOMAS */}
-            <div className="relative hidden md:block">
+          <div className="space-y-4">
+            {eventos.length === 0 ? (
+              <p className="text-slate-500 text-sm font-bold text-center py-10">
+                No hay eventos programados.
+              </p>
+            ) : (
+              eventos.map((evento) => (
+                <div
+                  key={evento.id}
+                  className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:border-indigo-200 transition-colors cursor-pointer group"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <span className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-md">
+                      {new Date(evento.fecha_hora).toLocaleDateString("es-ES", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </span>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-md ${Number(evento.precio) === 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                    >
+                      {Number(evento.precio) === 0
+                        ? "Gratuito"
+                        : `$${evento.precio}`}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-slate-900 leading-tight mb-2 group-hover:text-indigo-600 transition-colors">
+                    {evento.titulo}
+                  </h3>
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>{" "}
+                    {evento.modalidad}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="lg:col-span-2">
+          <div className="flex justify-between items-end mb-8">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-1">
+                Muro Comunitario
+              </h2>
+              <p className="text-slate-500 font-medium text-sm">
+                Debates, networking y preguntas abiertas.
+              </p>
+            </div>
+            <button
+              onClick={() => setModalAbierto(true)}
+              className="text-sm font-bold bg-slate-900 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-600 transition-colors shadow-md shrink-0"
+            >
+              Crear Debate
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {conversaciones.length === 0 ? (
+              <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                <p className="text-slate-500 font-medium">
+                  Sé el primero en iniciar un debate en la comunidad.
+                </p>
+              </div>
+            ) : (
+              conversaciones.map((conv) => (
+                <div
+                  key={conv.id}
+                  className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-sm font-black text-indigo-600 shadow-inner">
+                      {conv.perfil_psicologo?.nombre_completo?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        {conv.perfil_psicologo?.nombre_completo || "Usuario"}
+                      </h4>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        {conv.titulo}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-slate-800 font-medium text-lg leading-relaxed mb-6 whitespace-pre-wrap">
+                    {conv.contenido}
+                  </p>
+                  <div className="flex items-center gap-6 border-t border-slate-50 pt-4">
+                    <span className="text-xs font-bold text-slate-400">
+                      {new Date(conv.creado_el).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+
+      {modalAbierto && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-4xl w-full max-w-xl flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  Crear Debate
+                </h2>
+                <p className="text-slate-500 text-xs font-bold mt-1">
+                  Comparte con profesionales y estudiantes.
+                </p>
+              </div>
               <button
-                onClick={() => setMenuIdiomas(!menuIdiomas)}
-                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-full text-sm font-bold text-slate-700 transition-colors focus:outline-none"
+                onClick={() => setModalAbierto(false)}
+                className="text-slate-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm"
               >
-                {idiomasDisponibles.find((i) => i.code === lang)?.flag}{" "}
-                {lang.toUpperCase()}
                 <svg
-                  className="w-4 h-4"
+                  className="w-5 h-5"
                   fill="none"
-                  stroke="currentColor"
                   viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
+                    d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
               </button>
-              {menuIdiomas && (
-                <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
-                  {idiomasDisponibles.map((idioma) => (
-                    <button
-                      key={idioma.code}
-                      onClick={() => {
-                        setLang(idioma.code as LangType);
-                        setMenuIdiomas(false);
-                      }}
-                      className={`w-full text-left px-4 py-3 text-sm font-bold hover:bg-slate-50 transition-colors ${lang === idioma.code ? "text-indigo-600 bg-slate-50" : "text-slate-700"}`}
-                    >
-                      {idioma.flag} {idioma.label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-
-            <Link
-              href="/"
-              className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors hidden md:block"
+            <form
+              onSubmit={handlePublicarDebate}
+              className="p-6 md:p-8 space-y-6"
             >
-              {t.back}
-            </Link>
-            <Link
-              href="/login"
-              className="bg-indigo-950 hover:bg-indigo-900 text-white font-bold py-2.5 px-6 rounded-full transition-all shadow-md text-sm"
-            >
-              {t.login}
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* CUADRÍCULA DE IDIOMAS PARA MÓVIL EN LA COMUNIDAD */}
-      <div className="md:hidden bg-white border-b border-slate-200 p-4">
-        <div className="grid grid-cols-3 gap-2">
-          {idiomasDisponibles.map((idioma) => (
-            <button
-              key={idioma.code}
-              onClick={() => setLang(idioma.code as LangType)}
-              className={`py-2 px-1 rounded-lg text-xs font-bold text-center border transition-colors ${lang === idioma.code ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-slate-50 border-slate-200 text-slate-700"}`}
-            >
-              {idioma.flag} {idioma.code.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 flex flex-col md:flex-row gap-8">
-        <aside className="w-full md:w-64 shrink-0">
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm sticky top-28">
-            <h2 className="font-black text-slate-900 mb-4 uppercase tracking-wider text-xs">
-              {t.sidebar.title}
-            </h2>
-            <nav className="space-y-2">
-              <button
-                onClick={() => setFiltroActivo("todos")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors text-sm ${filtroActivo === "todos" ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
-              >
-                🌐 {t.sidebar.global}
-              </button>
-              <button
-                onClick={() => setFiltroActivo("psieduca")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors text-sm ${filtroActivo === "psieduca" ? "bg-teal-50 text-teal-700" : "text-slate-600 hover:bg-slate-50"}`}
-              >
-                📚 {t.sidebar.courses}
-              </button>
-              <button
-                onClick={() => setFiltroActivo("profesionales")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors text-sm ${filtroActivo === "profesionales" ? "bg-purple-50 text-purple-700" : "text-slate-600 hover:bg-slate-50"}`}
-              >
-                🤝 {t.sidebar.pros}
-              </button>
-              <button
-                onClick={() => setFiltroActivo("estudiantes")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors text-sm ${filtroActivo === "estudiantes" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"}`}
-              >
-                🎓 {t.sidebar.students}
-              </button>
-            </nav>
-          </div>
-        </aside>
-
-        <main className="flex-1">
-          <div className="bg-linear-to-r from-indigo-950 to-purple-900 rounded-3xl p-8 text-white shadow-lg mb-8 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl transform translate-x-1/3 -translate-y-1/3"></div>
-            <div className="relative z-10">
-              <h2 className="text-3xl font-black mb-3">{t.main.welcome}</h2>
-              <p className="text-indigo-200 mb-6 max-w-lg leading-relaxed">
-                {t.main.desc}
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => alert(t.main.alert)}
-                  className="bg-white text-indigo-950 font-bold py-2.5 px-6 rounded-xl text-sm hover:bg-indigo-50 transition-colors shadow-md"
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Categoría
+                </label>
+                <select
+                  value={nuevoDebate.tag}
+                  onChange={(e) =>
+                    setNuevoDebate({ ...nuevoDebate, tag: e.target.value })
+                  }
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-slate-700 font-medium text-sm"
                 >
-                  {t.main.btn}
+                  <option value="Debate Clínico">🧠 Debate Clínico</option>
+                  <option value="Estudiantes">🎓 Estudiantes</option>
+                  <option value="Networking">🤝 Networking</option>
+                  <option value="Investigación">🔬 Investigación</option>
+                </select>
+              </div>
+              <div>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="Escribe tu pregunta o idea..."
+                  value={nuevoDebate.pregunta}
+                  onChange={(e) =>
+                    setNuevoDebate({ ...nuevoDebate, pregunta: e.target.value })
+                  }
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-slate-700 font-medium text-sm resize-none"
+                ></textarea>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={publicando || !nuevoDebate.pregunta.trim()}
+                  className="bg-slate-900 hover:bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-md disabled:opacity-50 flex items-center justify-center min-w-32"
+                >
+                  {publicando ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    "Publicar"
+                  )}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
-
-          <div className="space-y-4">
-            {forosFiltrados.length === 0 ? (
-              <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm">
-                <div className="text-4xl mb-4">📭</div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">
-                  {t.main.empty}
-                </h3>
-                <p className="text-slate-500">{t.main.emptyDesc}</p>
-              </div>
-            ) : (
-              forosFiltrados.map((foro) => (
-                <div
-                  key={foro.id}
-                  className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">
-                        {foro.autor.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 text-sm">
-                          {foro.autor}
-                        </p>
-                        <p className="text-xs text-slate-500">{foro.tiempo}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-4">
-                    {foro.titulo}
-                  </h3>
-                </div>
-              ))
-            )}
-          </div>
-        </main>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

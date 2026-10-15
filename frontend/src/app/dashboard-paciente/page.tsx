@@ -2,23 +2,72 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 
 export default function DashboardPacientePage() {
   const [nombrePaciente, setNombrePaciente] = useState("Paciente");
+  const router = useRouter(); // 🟢 Instanciamos el enrutador para el bot
 
   useEffect(() => {
     const obtenerUsuario = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user && user.email) {
-        const nombrePart = user.email.split("@")[0];
-        setNombrePaciente(nombrePart);
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) throw authError;
+
+        if (user && user.email) {
+          // 🟢 MAGIA: Buscamos el nombre real en la base de datos
+          const { data: pacienteData, error: dbError } = await supabase
+            .from("roles_usuarios")
+            .select("nombre")
+            .eq("correo", user.email)
+            .single();
+
+          if (dbError && dbError.code !== "PGRST116") {
+            // Ignoramos el error "no rows returned" por si es nuevo
+            console.error("Error al buscar nombre:", dbError);
+          }
+
+          // Si hay nombre real, lo usamos. Si no, usamos el truco del correo
+          if (pacienteData && pacienteData.nombre) {
+            // Mostramos solo el primer nombre para un saludo más amigable
+            const primerNombre = pacienteData.nombre.split(" ")[0];
+            setNombrePaciente(primerNombre);
+          } else {
+            const nombrePart = user.email.split("@")[0];
+            setNombrePaciente(nombrePart);
+          }
+        }
+      } catch (error) {
+        console.error("Error general en el inicio:", error);
       }
     };
     obtenerUsuario();
   }, []);
+
+  // 🤖 RECEPTORES DE EVENTOS DEL ASISTENTE INTELIGENTE
+  useEffect(() => {
+    // Definimos las acciones que el bot puede ejecutar
+    const entrarConsulta = () => router.push("/sala-virtual");
+    const configurarPerfil = () => router.push("/dashboard-paciente/perfil");
+    const irAHistorial = () => router.push("/dashboard-paciente/historial");
+
+    // Ponemos a la página a escuchar las órdenes exactas
+    window.addEventListener("BOT_ENTRAR_CONSULTA", entrarConsulta);
+    window.addEventListener("BOT_CONFIGURAR_PERFIL", configurarPerfil);
+    window.addEventListener("BOT_IR_HISTORIAL", irAHistorial);
+
+    // Limpieza de seguridad al desmontar el componente
+    return () => {
+      window.removeEventListener("BOT_ENTRAR_CONSULTA", entrarConsulta);
+      window.removeEventListener("BOT_CONFIGURAR_PERFIL", configurarPerfil);
+      window.removeEventListener("BOT_IR_HISTORIAL", irAHistorial);
+    };
+  }, [router]);
 
   return (
     <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-6xl mx-auto">
@@ -34,7 +83,6 @@ export default function DashboardPacientePage() {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          {/* AQUÍ ESTÁ LA MAGIA: El botón ahora es un Link activo */}
           <Link
             href="/dashboard-paciente/perfil"
             className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-bold py-2.5 px-5 rounded-xl transition shadow-sm"

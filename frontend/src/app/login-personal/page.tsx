@@ -201,7 +201,7 @@ export default function LoginPersonalPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none block w-full px-4 py-3 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-                placeholder="doctor@lumina.com"
+                placeholder="doctor@Clinesfera.com"
               />
             </div>
             <div>

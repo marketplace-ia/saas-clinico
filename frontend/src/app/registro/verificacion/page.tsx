@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "../../../../lib/supabase";
 
 export default function SubirVerificacionPage() {
+  const [nombreCompleto, setNombreCompleto] = useState(""); // 🟢 NUEVO ESTADO
   const [cedula, setCedula] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -11,9 +12,9 @@ export default function SubirVerificacionPage() {
 
   const manejarSubida = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cedula || !archivo) {
+    if (!nombreCompleto || !cedula || !archivo) {
       setMensaje(
-        "Protocolo de seguridad: Es obligatorio ingresar su identificación y adjuntar el documento de respaldo.",
+        "Protocolo de seguridad: Es obligatorio ingresar su nombre, identificación y adjuntar el documento de respaldo.",
       );
       return;
     }
@@ -49,6 +50,7 @@ export default function SubirVerificacionPage() {
         .upsert({
           id: userId,
           psicologo_id: userId,
+          nombre_completo: nombreCompleto.toUpperCase(), // 🟢 GUARDAMOS EL NOMBRE LEGAL
           cedula: cedula,
           url_documento: publicUrl,
           estado_verificacion: "pendiente",
@@ -56,16 +58,12 @@ export default function SubirVerificacionPage() {
 
       if (updateError) throw updateError;
 
-      // Redirección dura para limpiar caché
       window.location.href = "/dashboard-psicologo";
     } catch (error) {
       console.error("Error completo:", error);
       const err = error as { message?: string; error_description?: string };
       const mensajeReal =
-        err?.message ||
-        err?.error_description ||
-        JSON.stringify(error) ||
-        "Fallo de conexión segura.";
+        err?.message || err?.error_description || "Fallo de conexión segura.";
       setMensaje(`Excepción del sistema: ${mensajeReal}`);
     } finally {
       setSubiendo(false);
@@ -98,14 +96,34 @@ export default function SubirVerificacionPage() {
         <p className="mt-3 text-center text-sm text-slate-600 font-medium px-4 leading-relaxed">
           Como plataforma orientada a profesionales de la salud, operamos bajo
           estrictas normativas de seguridad de datos. Valide su registro
-          profesional para certificar su perfil y habilitar el entorno de su
-          consultorio digital.
+          profesional para certificar su perfil.
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-3xl sm:px-10 border border-slate-100">
           <form className="space-y-6" onSubmit={manejarSubida}>
+            {/* 🟢 NUEVO CAMPO DE NOMBRE */}
+            <div>
+              <label
+                htmlFor="nombreCompleto"
+                className="block text-sm font-bold text-slate-700"
+              >
+                Nombres y Apellidos Completos
+              </label>
+              <div className="mt-2">
+                <input
+                  id="nombreCompleto"
+                  type="text"
+                  required
+                  value={nombreCompleto}
+                  onChange={(e) => setNombreCompleto(e.target.value)}
+                  className="appearance-none block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 font-medium uppercase"
+                  placeholder="Ej: DR. JUAN PÉREZ"
+                />
+              </div>
+            </div>
+
             <div>
               <label
                 htmlFor="cedula"
@@ -116,7 +134,6 @@ export default function SubirVerificacionPage() {
               <div className="mt-2">
                 <input
                   id="cedula"
-                  name="cedula"
                   type="text"
                   required
                   value={cedula}
@@ -154,7 +171,6 @@ export default function SubirVerificacionPage() {
                       <span>Cargar documento certificado</span>
                       <input
                         id="file-upload"
-                        name="file-upload"
                         type="file"
                         className="sr-only"
                         accept="image/png, image/jpeg, application/pdf"
@@ -165,7 +181,7 @@ export default function SubirVerificacionPage() {
                     </label>
                   </div>
                   <p className="text-xs text-slate-500 font-medium">
-                    Formatos seguros: PNG, JPG o PDF (Max. 5MB)
+                    PNG, JPG o PDF (Max. 5MB)
                   </p>
                   {archivo && (
                     <p className="text-sm font-bold text-emerald-600 mt-2 bg-emerald-50 py-1 px-3 rounded-full inline-block">
@@ -177,7 +193,7 @@ export default function SubirVerificacionPage() {
             </div>
 
             {mensaje && (
-              <div className="p-4 rounded-xl text-sm font-bold bg-amber-50 text-amber-700 wrap-break-word border border-amber-200">
+              <div className="p-4 rounded-xl text-sm font-bold bg-amber-50 text-amber-700 border border-amber-200">
                 {mensaje}
               </div>
             )}
@@ -186,16 +202,11 @@ export default function SubirVerificacionPage() {
               <button
                 type="submit"
                 disabled={subiendo}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all disabled:opacity-50"
               >
-                {subiendo ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Cifrando y transmitiendo credenciales...
-                  </span>
-                ) : (
-                  "Autenticar y Enviar Documentación"
-                )}
+                {subiendo
+                  ? "Transmitiendo credenciales..."
+                  : "Autenticar y Enviar Documentación"}
               </button>
             </div>
           </form>

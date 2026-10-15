@@ -1,12 +1,26 @@
+import Link from "next/link";
+
 export default function PrivacidadPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white p-8 md:p-20">
       <div className="max-w-4xl mx-auto bg-white dark:bg-[#111] p-8 md:p-12 rounded-3xl shadow-xl border border-slate-200 dark:border-white/10">
-        <h1 className="text-4xl font-black mb-8 text-indigo-600 dark:text-indigo-400">
-          Política de Privacidad
+        <div className="mb-6">
+          <Link
+            href="/"
+            className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            ← Volver a la página principal de Clinesfera
+          </Link>
+        </div>
+
+        <h1 className="text-4xl font-black mb-4 text-indigo-600 dark:text-indigo-400">
+          Política de Privacidad — Clinesfera (PsiClinic)
         </h1>
         <p className="text-sm text-slate-500 mb-8">
-          Última actualización: Septiembre 2026
+          Última actualización: Octubre 2026 | Sitio oficial:{" "}
+          <a href="https://saas-clinico-2ge6.vercel.app" className="underline">
+            https://saas-clinico-2ge6.vercel.app
+          </a>
         </p>
 
         <div className="space-y-8 text-slate-700 dark:text-gray-300 leading-relaxed">
@@ -15,12 +29,12 @@ export default function PrivacidadPage() {
               1. Recopilación y Uso de Datos
             </h2>
             <p>
-              Clinesfera es una plataforma SaaS de gestión clínica. Recopilamos
-              información personal básica (nombre, correo electrónico) para la
-              creación de cuentas, y datos operativos necesarios para el
-              funcionamiento de la agenda y expedientes clínicos. Estos datos se
-              utilizan exclusivamente para proveer el servicio al profesional de
-              la salud.
+              Clinesfera (proyecto PsiClinic) es una plataforma SaaS de gestión
+              clínica. Recopilamos información personal básica (nombre, correo
+              electrónico) para la creación de cuentas, y datos operativos
+              necesarios para el funcionamiento de la agenda y expedientes
+              clínicos. Estos datos se utilizan exclusivamente para proveer el
+              servicio al profesional de la salud.
             </p>
           </section>
 

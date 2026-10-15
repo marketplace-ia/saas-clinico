@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Users, Calendar, Plus, Clock } from "lucide-react";
+import { Users, Calendar, Plus, FileText, CheckCircle } from "lucide-react";
+import Link from "next/link";
 
-// Inicializamos Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Interfaz para definir la forma exacta de los datos
 interface CitaManual {
   id?: string;
   paciente_correo?: string;
@@ -23,8 +22,6 @@ interface CitaManual {
 export default function DashboardSecretariaResumen() {
   const [mostrarModal, setMostrarModal] = useState(false);
   const [cargando, setCargando] = useState(false);
-
-  // SOLUCIÓN: Reemplazamos 'any' por nuestra interfaz 'CitaManual'
   const [citasRecientes, setCitasRecientes] = useState<CitaManual[]>([]);
 
   const [formulario, setFormulario] = useState({
@@ -36,6 +33,17 @@ export default function DashboardSecretariaResumen() {
   });
 
   useEffect(() => {
+    const handleBotAction = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.action === "OPEN_MODAL_NUEVA_CITA") {
+        setMostrarModal(true);
+      }
+    };
+    window.addEventListener("bot-action", handleBotAction);
+    return () => window.removeEventListener("bot-action", handleBotAction);
+  }, []);
+
+  useEffect(() => {
     const cargarCitas = async () => {
       const { data } = await supabase
         .from("citas")
@@ -43,7 +51,6 @@ export default function DashboardSecretariaResumen() {
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Le decimos a TypeScript que confíe en que los datos tienen esta forma
       if (data) setCitasRecientes(data as CitaManual[]);
     };
     cargarCitas();
@@ -74,11 +81,7 @@ export default function DashboardSecretariaResumen() {
       .select();
 
     if (error) {
-      alert(
-        "Hubo un error al agendar la cita. Verifica los datos.\nDetalle: " +
-          error.message,
-      );
-      console.error(error);
+      alert("Hubo un error al agendar la cita.\nDetalle: " + error.message);
     } else if (data) {
       alert("¡Cita agendada con éxito!");
       setMostrarModal(false);
@@ -91,17 +94,17 @@ export default function DashboardSecretariaResumen() {
       });
       setCitasRecientes([data[0] as CitaManual, ...citasRecientes]);
     }
-
     setCargando(false);
   };
 
   return (
     <div className="p-6 max-w-6xl mx-auto h-full overflow-y-auto">
-      {/* Encabezado y Botón de Acción */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Control General</h1>
-          <p className="text-slate-500 mt-1">Panel administrativo de Lumina.</p>
+          <p className="text-slate-500 mt-1">
+            Panel administrativo y de recepción.
+          </p>
         </div>
         <button
           onClick={() => setMostrarModal(true)}
@@ -112,19 +115,17 @@ export default function DashboardSecretariaResumen() {
         </button>
       </div>
 
-      {/* Widgets Estadísticos */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="bg-blue-50 p-4 rounded-xl">
             <Users className="w-8 h-8 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm text-slate-500 font-medium">
-              Pacientes Activos
-            </p>
+            <p className="text-sm text-slate-500 font-medium">Pacientes</p>
             <p className="text-2xl font-bold text-slate-900">124</p>
           </div>
         </div>
+
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="bg-emerald-50 p-4 rounded-xl">
             <Calendar className="w-8 h-8 text-emerald-600" />
@@ -134,20 +135,38 @@ export default function DashboardSecretariaResumen() {
             <p className="text-2xl font-bold text-slate-900">8</p>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="bg-amber-50 p-4 rounded-xl">
-            <Clock className="w-8 h-8 text-amber-600" />
+
+        <Link
+          href="/dashboard-secretaria/recaudacion"
+          className="bg-white hover:bg-amber-50/50 transition-colors p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 group"
+        >
+          <div className="bg-amber-50 group-hover:bg-amber-100 transition-colors p-4 rounded-xl">
+            <CheckCircle className="w-8 h-8 text-amber-600" />
           </div>
           <div>
-            <p className="text-sm text-slate-500 font-medium">
-              Pendientes de Pago
+            <p className="text-sm text-slate-500 font-medium">Auditar Pagos</p>
+            <p className="text-sm font-bold text-amber-600 mt-1">
+              Ir a Recaudación ➔
             </p>
-            <p className="text-2xl font-bold text-slate-900">3</p>
           </div>
-        </div>
+        </Link>
+
+        <Link
+          href="/dashboard-secretaria/facturacion"
+          className="bg-white hover:bg-purple-50/50 transition-colors p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 group"
+        >
+          <div className="bg-purple-50 group-hover:bg-purple-100 transition-colors p-4 rounded-xl">
+            <FileText className="w-8 h-8 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-sm text-slate-500 font-medium">Comprobantes</p>
+            <p className="text-sm font-bold text-purple-600 mt-1">
+              Ir a Facturación ➔
+            </p>
+          </div>
+        </Link>
       </div>
 
-      {/* Modal Funcional */}
       {mostrarModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -187,7 +206,6 @@ export default function DashboardSecretariaResumen() {
                   type="email"
                   name="paciente_correo"
                   required
-                  placeholder="paciente12@gmail.com"
                   value={formulario.paciente_correo}
                   onChange={manejarCambio}
                   className="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-700 bg-white"
@@ -202,7 +220,6 @@ export default function DashboardSecretariaResumen() {
                   type="email"
                   name="psicologo_correo"
                   required
-                  placeholder="psicologo@Lumina.com"
                   value={formulario.psicologo_correo}
                   onChange={manejarCambio}
                   className="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-700 bg-white"
@@ -249,7 +266,6 @@ export default function DashboardSecretariaResumen() {
                   onChange={manejarCambio}
                   rows={2}
                   className="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none resize-none text-slate-700 bg-white"
-                  placeholder="sesion individual"
                 ></textarea>
               </div>
 

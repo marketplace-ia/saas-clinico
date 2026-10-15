@@ -11,6 +11,7 @@ export default function PerfilPage() {
   const [eslogan, setEslogan] = useState("");
   const [colorMarca, setColorMarca] = useState("#4F46E5");
   const [mision, setMision] = useState("");
+  const [precioConsulta, setPrecioConsulta] = useState<number>(50.0); // 🟢 NUEVO ESTADO: Honorarios
 
   // Estados de carga y conexión
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
@@ -30,15 +31,17 @@ export default function PerfilPage() {
         .from("perfil_psicologo")
         .select("*")
         .eq("psicologo_id", session.user.id)
-        .maybeSingle(); // Usamos maybeSingle para que no arroje error si aún no existe
+        .maybeSingle();
 
       if (error) throw error;
 
       if (data) {
-        setNombreComercial(data.nombre_comercial);
-        setEslogan(data.eslogan);
-        setColorMarca(data.color_marca);
-        setMision(data.mision);
+        setNombreComercial(data.nombre_comercial || "Consultorio Psicológico");
+        setEslogan(data.eslogan || "");
+        setColorMarca(data.color_marca || "#4F46E5");
+        setMision(data.mision || "");
+        // 🟢 Carga el precio desde la BD, por defecto 50
+        setPrecioConsulta(data.precio_consulta || 50.0);
       }
     } catch (err) {
       console.error("Error cargando perfil:", err);
@@ -48,13 +51,11 @@ export default function PerfilPage() {
   }, []);
 
   useEffect(() => {
-    // CORRECCIÓN 1: Envolvemos cargarPerfil en una función asíncrona
     const inicializar = async () => {
       await cargarPerfil();
     };
     inicializar();
 
-    // Verificar si está conectado a Google
     const verificarConexion = async () => {
       const {
         data: { session },
@@ -67,7 +68,6 @@ export default function PerfilPage() {
     verificarConexion();
   }, [cargarPerfil]);
 
-  // Conectar con Google Calendar
   const conectarGoogleCalendar = async () => {
     setCargandoGoogle(true);
     try {
@@ -91,7 +91,6 @@ export default function PerfilPage() {
     }
   };
 
-  // Función REAL para guardar en la base de datos
   const guardarCambios = async (e: React.FormEvent) => {
     e.preventDefault();
     setGuardando(true);
@@ -108,6 +107,7 @@ export default function PerfilPage() {
           eslogan: eslogan,
           color_marca: colorMarca,
           mision: mision,
+          precio_consulta: precioConsulta, // 🟢 Guarda el precio en la BD
           actualizado_en: new Date().toISOString(),
         },
         { onConflict: "psicologo_id" },
@@ -136,8 +136,8 @@ export default function PerfilPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-black text-slate-900 mb-2">Mi Perfil</h1>
         <p className="text-slate-500 font-medium">
-          Personaliza la marca blanca de tu consultorio. Tus pacientes verán
-          esta información.
+          Personaliza la marca blanca de tu consultorio y define tus honorarios
+          profesionales.
         </p>
       </div>
 
@@ -146,6 +146,7 @@ export default function PerfilPage() {
           <h2 className="text-xl font-black text-slate-900 mb-6">
             Identidad de la Clínica
           </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
@@ -171,24 +172,53 @@ export default function PerfilPage() {
               />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">
-              Color Principal de Marca
-            </label>
-            <div className="flex items-center gap-4">
-              <div
-                className="w-12 h-12 rounded-lg border-2 border-slate-200 shadow-sm transition-colors"
-                style={{ backgroundColor: colorMarca }}
-              ></div>
-              <input
-                type="color"
-                value={colorMarca}
-                onChange={(e) => setColorMarca(e.target.value)}
-                className="h-12 w-16 p-1 rounded-lg border border-slate-200 cursor-pointer"
-              />
-              <span className="font-mono text-sm text-slate-500 font-bold uppercase">
-                {colorMarca}
-              </span>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Color Principal de Marca
+              </label>
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-12 h-12 rounded-lg border-2 border-slate-200 shadow-sm transition-colors"
+                  style={{ backgroundColor: colorMarca }}
+                ></div>
+                <input
+                  type="color"
+                  value={colorMarca}
+                  onChange={(e) => setColorMarca(e.target.value)}
+                  className="h-12 w-16 p-1 rounded-lg border border-slate-200 cursor-pointer"
+                />
+                <span className="font-mono text-sm text-slate-500 font-bold uppercase">
+                  {colorMarca}
+                </span>
+              </div>
+            </div>
+
+            {/* 🟢 NUEVO CAMPO: Honorarios Profesionales */}
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Precio por Consulta (USD)
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <span className="text-slate-500 font-bold">$</span>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  value={precioConsulta}
+                  onChange={(e) =>
+                    setPrecioConsulta(parseFloat(e.target.value) || 0)
+                  }
+                  className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 text-lg"
+                />
+              </div>
+              <p className="text-xs text-slate-400 font-medium mt-2">
+                Este valor se mostrará a los pacientes al agendar.
+              </p>
             </div>
           </div>
         </div>
@@ -268,11 +298,7 @@ export default function PerfilPage() {
               type="button"
               onClick={conectarGoogleCalendar}
               disabled={cargandoGoogle || conectadoGoogle}
-              className={`w-full sm:w-auto px-6 py-2.5 font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 ${
-                conectadoGoogle
-                  ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-200 cursor-default"
-                  : "bg-white border-2 border-slate-200 hover:border-indigo-600 hover:text-indigo-600 text-slate-700"
-              }`}
+              className={`w-full sm:w-auto px-6 py-2.5 font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 ${conectadoGoogle ? "bg-emerald-50 text-emerald-700 border-2 border-emerald-200 cursor-default" : "bg-white border-2 border-slate-200 hover:border-indigo-600 hover:text-indigo-600 text-slate-700"}`}
             >
               {cargandoGoogle
                 ? "Conectando..."

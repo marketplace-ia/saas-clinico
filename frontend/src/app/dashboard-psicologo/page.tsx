@@ -17,6 +17,13 @@ export default function DashboardPsicologo() {
   const [totalPacientes, setTotalPacientes] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [nombre, setNombre] = useState("Doc");
+  const [mostrarModalCita, setMostrarModalCita] = useState(false);
+  const [guardandoCita, setGuardandoCita] = useState(false);
+  const [formulario, setFormulario] = useState({
+    paciente: "",
+    fecha: "",
+    hora: "",
+  });
 
   useEffect(() => {
     const cargarDatosDashboard = async () => {
@@ -26,16 +33,13 @@ export default function DashboardPsicologo() {
         } = await supabase.auth.getSession();
         if (!session) return;
 
-        // Extraemos el nombre del correo (ej: esteban@gmail.com -> esteban)
         const emailNombre = session.user.email?.split("@")[0] || "Doc";
         setNombre(emailNombre.charAt(0).toUpperCase() + emailNombre.slice(1));
 
-        // 1. Obtener la fecha de hoy en formato YYYY-MM-DD
         const hoy = new Date().toLocaleDateString("en-CA", {
           timeZone: "America/Guayaquil",
         });
 
-        // 2. Buscar las citas de HOY
         const { data: citasData } = await supabase
           .from("citas")
           .select("id, nombre_paciente, hora_inicio, hora_fin, modalidad")
@@ -45,7 +49,6 @@ export default function DashboardPsicologo() {
 
         if (citasData) setCitasHoy(citasData);
 
-        // 3. Contar total de expedientes/pacientes
         const { count } = await supabase
           .from("historias_clinicas")
           .select("*", { count: "exact", head: true })
@@ -62,9 +65,74 @@ export default function DashboardPsicologo() {
     cargarDatosDashboard();
   }, []);
 
+  useEffect(() => {
+    const handleNuevaCita = () => setMostrarModalCita(true);
+    window.addEventListener("OPEN_MODAL_NUEVA_CITA", handleNuevaCita);
+    return () =>
+      window.removeEventListener("OPEN_MODAL_NUEVA_CITA", handleNuevaCita);
+  }, []);
+
+  // 🟢 FUNCIÓN ACTUALIZADA Y BLINDADA
+  const guardarNuevaCita = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGuardandoCita(true);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No hay sesión activa");
+
+      const { data: tu } = await supabase
+        .from("tenant_users")
+        .select("tenant_id")
+        .eq("usuario_id", session.user.id)
+        .single();
+
+      if (!tu)
+        throw new Error(
+          "No tienes una clínica asignada para guardar esta cita.",
+        );
+
+      // Calcular hora de fin aproximada (+1 hora)
+      const horaInicioObj = new Date(`2000-01-01T${formulario.hora}`);
+      horaInicioObj.setHours(horaInicioObj.getHours() + 1);
+      const hora_fin = horaInicioObj.toTimeString().split(" ")[0];
+
+      // 🟢 CORRECCIÓN: Usar estado "confirmed"
+      const { error } = await supabase.from("citas").insert({
+        tenant_id: tu.tenant_id,
+        psicologo_id: session.user.id,
+        nombre_paciente: formulario.paciente,
+        fecha: formulario.fecha,
+        hora_inicio: formulario.hora,
+        hora_fin: hora_fin,
+        modalidad: "Online",
+        estado: "confirmed",
+      });
+
+      if (error) throw error;
+
+      setFormulario({ paciente: "", fecha: "", hora: "" });
+      setMostrarModalCita(false);
+      window.location.reload();
+    } catch (error: unknown) {
+      console.error("Detalle completo del error:", error);
+      let errorReal = "Error desconocido";
+      if (error instanceof Error) {
+        errorReal = error.message;
+      } else if (typeof error === "object" && error !== null) {
+        const errObj = error as { message?: string; details?: string };
+        errorReal = errObj.message || errObj.details || JSON.stringify(error);
+      }
+      alert(`⚠️ Error al agendar: \n${errorReal}`);
+    } finally {
+      setGuardandoCita(false);
+    }
+  };
+
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 h-full flex flex-col">
-      {/* SALUDO Y FECHA */}
+    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500 h-full flex flex-col relative">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 mb-1">
@@ -79,9 +147,9 @@ export default function DashboardPsicologo() {
             })}
           </p>
         </div>
-        <Link
-          href="/dashboard-psicologo/agenda"
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center gap-2"
+        <button
+          onClick={() => setMostrarModalCita(true)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
         >
           <svg
             className="w-5 h-5"
@@ -97,7 +165,7 @@ export default function DashboardPsicologo() {
             />
           </svg>
           Agendar Cita
-        </Link>
+        </button>
       </div>
 
       {cargando ? (
@@ -106,9 +174,7 @@ export default function DashboardPsicologo() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* COLUMNA IZQUIERDA: MÉTRICAS */}
           <div className="lg:col-span-2 space-y-6">
-            {/* TARJETAS DE RESUMEN */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
                 <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner">
@@ -163,7 +229,6 @@ export default function DashboardPsicologo() {
               </div>
             </div>
 
-            {/* BANNER PROMOCIONAL O AVISO */}
             <div className="bg-linear-to-r from-indigo-600 to-violet-600 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden">
               <div className="relative z-10 md:w-2/3">
                 <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-md mb-4 inline-block">
@@ -178,13 +243,11 @@ export default function DashboardPsicologo() {
                   listo para escalar.
                 </p>
               </div>
-              {/* Decoración gráfica */}
               <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
               <div className="absolute top-10 -right-5 w-32 h-32 bg-indigo-400 opacity-20 rounded-full blur-2xl"></div>
             </div>
           </div>
 
-          {/* COLUMNA DERECHA: AGENDA DEL DÍA */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:h-150 flex flex-col">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-slate-900">
@@ -226,6 +289,7 @@ export default function DashboardPsicologo() {
                     key={cita.id}
                     className="p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:border-indigo-200 hover:bg-indigo-50/50 transition-colors flex gap-4"
                   >
+                    {/* 🟢 CORRECCIÓN TAILWIND APLICADA AQUÍ */}
                     <div className="flex flex-col items-center justify-center min-w-15 border-r border-slate-200 pr-4">
                       <span className="text-lg font-black text-slate-900">
                         {cita.hora_inicio.slice(0, 5)}
@@ -248,6 +312,77 @@ export default function DashboardPsicologo() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 🟢 CORRECCIÓN TAILWIND APLICADA AQUÍ */}
+      {mostrarModalCita && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setMostrarModalCita(false)}
+              className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-2">
+              📅 Agendar Nueva Cita
+            </h2>
+            <form className="space-y-5" onSubmit={guardarNuevaCita}>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Paciente
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formulario.paciente}
+                  onChange={(e) =>
+                    setFormulario({ ...formulario, paciente: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="Ej. Ana Pérez"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formulario.fecha}
+                    onChange={(e) =>
+                      setFormulario({ ...formulario, fecha: e.target.value })
+                    }
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Hora
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={formulario.hora}
+                    onChange={(e) =>
+                      setFormulario({ ...formulario, hora: e.target.value })
+                    }
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={guardandoCita}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-md mt-2 flex justify-center items-center gap-2"
+              >
+                {guardandoCita ? "Guardando..." : "Guardar Sesión"}
+              </button>
+            </form>
           </div>
         </div>
       )}
