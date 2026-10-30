@@ -1,12 +1,27 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 export async function POST(req: Request) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error(
+        "Credenciales de servidor no configuradas correctamente.",
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error("Error leyendo JSON de la petición:", e);
+      throw new Error("Formato de datos inválido.");
+    }
+
     const {
       psicologo_id,
       paciente_correo,
@@ -15,7 +30,7 @@ export async function POST(req: Request) {
       hora_inicio,
       paciente_telefono,
       modalidad,
-    } = await req.json();
+    } = body;
 
     if (!psicologo_id || !paciente_correo || !fecha || !hora_inicio) {
       return NextResponse.json(
@@ -29,17 +44,17 @@ export async function POST(req: Request) {
         .from("roles_usuarios")
         .select("id")
         .eq("correo", paciente_correo)
-        .single(),
+        .maybeSingle(),
       supabase
         .from("perfil_psicologo")
         .select("precio_consulta")
         .eq("psicologo_id", psicologo_id)
-        .single(),
+        .maybeSingle(),
       supabase
         .from("tenant_users")
         .select("tenant_id")
         .eq("usuario_id", psicologo_id)
-        .single(),
+        .maybeSingle(),
     ]);
 
     const precio = psicologoRes.data?.precio_consulta || 50.0;
@@ -98,13 +113,13 @@ export async function POST(req: Request) {
       .insert({
         tenant_id,
         cita_id: cita.id,
-        psicologo_id: psicologo_id,
+        psicologo_id,
         monto_pagado: precio,
         estado_pago: "pending",
       });
 
     if (errRecaudacion)
-      throw new Error(`Error BD Recaudación: ${errRecaudacion.message}`);
+      console.error("Error BD Recaudación:", errRecaudacion.message);
 
     if (pacienteRes.data) {
       const { error: errPago } = await supabase.from("pagos").insert({
@@ -117,11 +132,13 @@ export async function POST(req: Request) {
         metodo_pago: "bank_transfer",
       });
 
-      if (errPago) throw new Error(`Error BD Pagos: ${errPago.message}`);
+      if (errPago) console.error("Error BD Pagos:", errPago.message);
     }
 
     try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        "https://saas-clinico-2ge6.vercel.app";
       const syncUrl = `${appUrl}/api/calendario/sync`;
 
       await fetch(syncUrl, {
@@ -144,6 +161,7 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     const mensaje =
       error instanceof Error ? error.message : "Error interno del servidor";
-    return NextResponse.json({ error: mensaje }, { status: 500 });
+    console.error("Error en API de Citas:", mensaje);
+    return NextResponse.json({ error: mensaje }, { status: 400 }); // Status 400 evita que el celular colapse
   }
 }
