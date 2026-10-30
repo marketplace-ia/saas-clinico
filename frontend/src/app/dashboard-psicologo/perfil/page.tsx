@@ -11,13 +11,19 @@ export default function PerfilPage() {
   const [eslogan, setEslogan] = useState("");
   const [colorMarca, setColorMarca] = useState("#4F46E5");
   const [mision, setMision] = useState("");
-  const [precioConsulta, setPrecioConsulta] = useState<number>(50.0); // 🟢 NUEVO ESTADO: Honorarios
+  const [precioConsulta, setPrecioConsulta] = useState<number>(50.0);
 
   // Estados de carga y conexión
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
   const [conectadoGoogle, setConectadoGoogle] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [cargandoPerfil, setCargandoPerfil] = useState(true);
+
+  // Estado para capturar mensajes de éxito o error al volver de Google
+  const [mensajeGoogle, setMensajeGoogle] = useState<{
+    texto: string;
+    tipo: "exito" | "error";
+  } | null>(null);
 
   // Cargar perfil al entrar
   const cargarPerfil = useCallback(async () => {
@@ -40,7 +46,6 @@ export default function PerfilPage() {
         setEslogan(data.eslogan || "");
         setColorMarca(data.color_marca || "#4F46E5");
         setMision(data.mision || "");
-        // 🟢 Carga el precio desde la BD, por defecto 50
         setPrecioConsulta(data.precio_consulta || 50.0);
       }
     } catch (err) {
@@ -57,38 +62,64 @@ export default function PerfilPage() {
     inicializar();
 
     const verificarConexion = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        const esGoogle = session.user.app_metadata?.provider === "google";
-        setConectadoGoogle(esGoogle);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data } = await supabase
+            .from("integraciones_oauth")
+            .select("id")
+            .eq("psicologo_id", session.user.id)
+            .eq("proveedor", "google_calendar")
+            .eq("estado", "conectado")
+            .maybeSingle();
+
+          setConectadoGoogle(!!data);
+        }
+      } catch (error) {
+        console.error("Error verificando conexión:", error);
       }
     };
+
     verificarConexion();
   }, [cargarPerfil]);
 
-  const conectarGoogleCalendar = async () => {
+  // 🟢 CORRECCIÓN ESLINT: Separamos la validación de URL en su propio useEffect
+  // Usamos un pequeño timer para evitar el "Cascading Render" síncrono que bloquea ESLint
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("google_sync") === "success") {
+        setMensajeGoogle({
+          texto: "¡Calendario sincronizado con éxito!",
+          tipo: "exito",
+        });
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+      } else if (urlParams.get("error")) {
+        setMensajeGoogle({
+          texto: "Hubo un error al sincronizar el calendario.",
+          tipo: "error",
+        });
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+      }
+    }, 50); // 50ms de retraso es imperceptible para el humano, pero suficiente para React
+
+    return () => clearTimeout(timer); // Limpieza de memoria
+  }, []);
+
+  const conectarGoogleCalendar = () => {
     setCargandoGoogle(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          scopes: "https://www.googleapis.com/auth/calendar",
-          redirectTo: `${window.location.origin}/dashboard-psicologo/perfil`,
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-        },
-      });
-      if (error) throw error;
-    } catch (err) {
-      console.error("Error conectando con Google:", err);
-      alert("Hubo un error al intentar conectar con Google.");
-    } finally {
-      setCargandoGoogle(false);
-    }
+    // Redirigimos al puente de Ida en el Backend
+    window.location.href = "/api/calendario/conectar";
   };
 
   const guardarCambios = async (e: React.FormEvent) => {
@@ -107,7 +138,7 @@ export default function PerfilPage() {
           eslogan: eslogan,
           color_marca: colorMarca,
           mision: mision,
-          precio_consulta: precioConsulta, // 🟢 Guarda el precio en la BD
+          precio_consulta: precioConsulta,
           actualizado_en: new Date().toISOString(),
         },
         { onConflict: "psicologo_id" },
@@ -140,6 +171,14 @@ export default function PerfilPage() {
           profesionales.
         </p>
       </div>
+
+      {mensajeGoogle && (
+        <div
+          className={`mb-6 p-4 rounded-xl font-bold flex items-center gap-3 ${mensajeGoogle.tipo === "exito" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}
+        >
+          {mensajeGoogle.tipo === "exito" ? "🎉" : "⚠️"} {mensajeGoogle.texto}
+        </div>
+      )}
 
       <form onSubmit={guardarCambios} className="space-y-8">
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
@@ -195,7 +234,6 @@ export default function PerfilPage() {
               </div>
             </div>
 
-            {/* 🟢 NUEVO CAMPO: Honorarios Profesionales */}
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Precio por Consulta (USD)

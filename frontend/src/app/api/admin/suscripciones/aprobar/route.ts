@@ -69,11 +69,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Activamos el tenant en el motor C.A.S.E.
+    // 5. 🟢 CORRECCIÓN APLICADA: Activamos el tenant en el motor C.A.S.E. apuntando a la tabla correcta
     const { error: errorUpdateTenant } = await supabaseAdmin
-      .from("tenants")
-      .update({ estado_suscripcion: "active" })
-      .eq("id", tenantId);
+      .from("tenant_subscriptions")
+      .update({ estado: "active" })
+      .eq("tenant_id", tenantId);
 
     if (errorUpdateTenant) {
       throw new Error(

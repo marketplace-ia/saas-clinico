@@ -10,6 +10,7 @@ export default function ActivacionStaffPage() {
   const [cargando, setCargando] = useState(false);
   const router = useRouter();
 
+  // TODO a futuro: Mover esta validación de código a una ruta API segura (/api/activar-staff)
   const CODIGO_SECRETO = "CLINICA-PRO-2026";
 
   const activarCuenta = async (e: React.FormEvent) => {
@@ -36,7 +37,8 @@ export default function ActivacionStaffPage() {
         "¡Autenticación exitosa! Tu cuenta ha sido elevada a Especialista.",
       );
 
-      window.location.href = "/dashboard-psicologo";
+      // 🟢 CORRECCIÓN UX: Uso del enrutador de Next.js para navegación SPA (sin recargas de pantalla blanca)
+      router.push("/dashboard-psicologo");
     } catch (err) {
       // CORRECCIÓN TYPESCRIPT APLICADA AQUÍ
       if (err instanceof Error) {

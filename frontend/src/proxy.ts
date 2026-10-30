@@ -40,11 +40,9 @@ export async function proxy(request: NextRequest) {
       );
 
     console.log("[PROXY] 2. Consultando auth.getUser()...");
-
     let user: User | null = null;
 
     try {
-      // Usamos Promise.resolve() para estandarizar los tipos de Supabase y evitar errores de TypeScript
       const authResult = await Promise.race([
         Promise.resolve(supabase.auth.getUser()),
         timeout(8000),
@@ -57,7 +55,6 @@ export async function proxy(request: NextRequest) {
     console.log(
       `[PROXY] 3. Usuario obtenido: ${user ? user.email : "Ninguno"}`,
     );
-
     const currentPath = request.nextUrl.pathname;
 
     if (
@@ -71,7 +68,7 @@ export async function proxy(request: NextRequest) {
       !currentPath.startsWith("/privacidad") &&
       !currentPath.startsWith("/proximamente") &&
       !currentPath.startsWith("/p/") &&
-      !currentPath.startsWith("/api/webhooks") &&
+      !currentPath.startsWith("/api/") &&
       currentPath !== "/"
     ) {
       console.log("[PROXY] 4. Redirigiendo a /login (Usuario no autenticado)");
@@ -79,6 +76,20 @@ export async function proxy(request: NextRequest) {
     }
 
     if (user) {
+      // 🟢 CORRECCIÓN: Uso de Variables de Entorno para el correo del Administrador
+      if (currentPath.startsWith("/admin")) {
+        const adminEmail =
+          process.env.NEXT_PUBLIC_SUPERADMIN_EMAIL ||
+          "pinedaesteban535@gmail.com";
+
+        if (user.email !== adminEmail) {
+          console.warn(
+            "[PROXY] Intento de acceso denegado a panel /admin por usuario no autorizado.",
+          );
+          return NextResponse.redirect(new URL("/", request.url));
+        }
+      }
+
       console.log("[PROXY] 4. Buscando rol en base de datos...");
       let rol = "paciente";
 
@@ -171,7 +182,6 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 }
-
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",

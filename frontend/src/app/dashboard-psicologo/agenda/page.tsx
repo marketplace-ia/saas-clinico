@@ -71,7 +71,7 @@ export default function AgendaPsicologoPage() {
     }
   }, [fechaSeleccionada]);
 
-  // 🟢 CORRECCIÓN: Envolvemos la llamada en una función interna asíncrona
+  // Envolvemos la llamada en una función interna asíncrona
   useEffect(() => {
     const inicializarCitas = async () => {
       await cargarCitas();
@@ -99,6 +99,7 @@ export default function AgendaPsicologoPage() {
     }
   };
 
+  // 🟢 LA NUEVA LÓGICA DE AGENDAMIENTO CENTRALIZADO
   const handleAgendarCita = async (e: React.FormEvent) => {
     e.preventDefault();
     setGuardando(true);
@@ -110,39 +111,33 @@ export default function AgendaPsicologoPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sesión inválida");
 
-      // Buscar el tenant_id del psicólogo para aislar los datos correctamente
-      const { data: tu } = await supabase
-        .from("tenant_users")
-        .select("tenant_id")
-        .eq("usuario_id", user.id)
-        .single();
-
-      // Calcular hora de fin aproximada (+1 hora)
-      const horaInicioObj = new Date(`2000-01-01T${nuevaCita.hora_inicio}`);
-      horaInicioObj.setHours(horaInicioObj.getHours() + 1);
-      const hora_fin = horaInicioObj.toTimeString().split(" ")[0];
-
       const diaFiltro = fechaSeleccionada.toLocaleDateString("en-CA", {
         timeZone: "America/Guayaquil",
       });
 
-      const payload = {
-        tenant_id: tu?.tenant_id || null,
-        psicologo_id: user.id,
-        nombre_paciente: nuevaCita.nombre_paciente,
-        paciente_correo: nuevaCita.paciente_email,
-        paciente_telefono: nuevaCita.paciente_telefono,
-        fecha: diaFiltro,
-        hora_inicio: nuevaCita.hora_inicio,
-        hora_fin: hora_fin,
-        modalidad: nuevaCita.modalidad,
-        estado: "confirmed",
-      };
+      // Delegamos TODO el trabajo a la ruta segura de tu backend
+      const respuesta = await fetch("/api/citas/agendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          psicologo_id: user.id,
+          paciente_nombre: nuevaCita.nombre_paciente,
+          paciente_correo:
+            nuevaCita.paciente_email || "sin_correo@clinesfera.com", // Fallback seguro para la DB
+          paciente_telefono: nuevaCita.paciente_telefono,
+          fecha: diaFiltro,
+          hora_inicio: nuevaCita.hora_inicio,
+          modalidad: nuevaCita.modalidad,
+        }),
+      });
 
-      const { error } = await supabase.from("citas").insert([payload]);
+      const datos = await respuesta.json();
 
-      if (error) throw error;
+      if (!respuesta.ok) {
+        throw new Error(datos.error || "Fallo al agendar en el servidor");
+      }
 
+      // Si todo sale bien, cerramos el modal, limpiamos y recargamos
       setModalAbierto(false);
       setNuevaCita({
         nombre_paciente: "",
@@ -153,8 +148,8 @@ export default function AgendaPsicologoPage() {
       });
       cargarCitas();
     } catch (error: unknown) {
-      const err = error as { message?: string };
-      setErrorTecnico(err?.message || "Error al agendar la cita.");
+      const err = error as Error;
+      setErrorTecnico(err.message);
     } finally {
       setGuardando(false);
     }

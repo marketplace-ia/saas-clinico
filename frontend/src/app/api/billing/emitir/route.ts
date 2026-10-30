@@ -106,6 +106,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // 🟢 CORRECCIÓN: Nombres y Direcciones dinámicos para evitar descuadres contables
+    const conceptoFactura =
+      pago.entidad_tipo === "cita"
+        ? "Consulta Psicológica"
+        : pago.entidad_tipo === "taller"
+          ? "Inscripción Taller"
+          : "Servicio Profesional";
+
+    // 🟢 CORRECCIÓN ESLINT DEFINITIVA:
+    // Usamos Record<string, unknown> en lugar de 'any' para un tipado seguro en TypeScript
+    const pacienteSeguro = paciente as Record<string, unknown>;
+    const direccionPaciente =
+      typeof pacienteSeguro?.direccion === "string"
+        ? pacienteSeguro.direccion
+        : "S/D";
+
     // 4. Preparar el Contrato
     const payload: InvoicePayload = {
       referencia_interna: pago.referencia_unica,
@@ -119,13 +135,13 @@ export async function POST(request: Request) {
         identificacion: identificacionReal,
         tipo_identificacion: tipoReal as "cedula" | "ruc" | "pasaporte",
         razon_social: razonSocialReal,
-        direccion: "Ecuador", // Puedes mejorarlo extrayendo la dirección si existe en la BD
+        direccion: direccionPaciente,
         correo: paciente?.correo || "",
       },
       detalles: [
         {
           codigo: "SRV-PSI-01",
-          descripcion: "Servicios Profesionales de Psicología",
+          descripcion: conceptoFactura,
           cantidad: 1,
           precio_unitario: Number(pago.monto),
           descuento: 0,
@@ -184,12 +200,13 @@ export async function POST(request: Request) {
       estado: resultado.estado_sri,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    const msgError = error?.message || "Error desconocido";
+    // 🟢 CORRECCIÓN ESLINT: Reemplazado `error: any` por `error: unknown`
+  } catch (error: unknown) {
+    const msgError =
+      error instanceof Error ? error.message : "Error desconocido";
     console.error("[Billing API] Error detallado:", error);
     return NextResponse.json(
-      { error: msgError, detalles_completos: error },
+      { error: msgError, detalles_completos: String(error) },
       { status: 500 },
     );
   }

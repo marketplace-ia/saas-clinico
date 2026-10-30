@@ -30,6 +30,15 @@ export async function POST(req: Request) {
       throw new Error("Usuario no encontrado en los registros oficiales.");
     }
 
+    // 🟢 CORRECCIÓN: Buscamos el UUID del psicólogo en auth para evitar el "Psicólogo Fantasma"
+    const { data: perfilAuth } = await supabase
+      .from("perfiles")
+      .select("id")
+      .eq("email", correo)
+      .single();
+
+    const psicologoId = perfilAuth?.id || null;
+
     // 2. Generar la Suscripción en estado 'INACTIVA' (Bloqueada hasta confirmación)
     const { data: suscripcion, error: errSub } = await supabase
       .from("suscripciones")
@@ -54,6 +63,7 @@ export async function POST(req: Request) {
       .from("pagos")
       .insert({
         usuario_id: usuario.id,
+        psicologo_id: psicologoId, // 🟢 MAGIA AQUÍ: Inyectamos el UUID real
         referencia_unica: referenciaUnica,
         entidad_tipo: "suscripcion",
         entidad_id: suscripcion.id,

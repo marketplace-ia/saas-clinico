@@ -13,6 +13,8 @@ export async function POST(req: Request) {
       paciente_nombre,
       fecha,
       hora_inicio,
+      paciente_telefono,
+      modalidad,
     } = await req.json();
 
     if (!psicologo_id || !paciente_correo || !fecha || !hora_inicio) {
@@ -22,7 +24,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Obtener ID del paciente, precio y Tenant_ID del psicólogo
     const [pacienteRes, psicologoRes, tenantRes] = await Promise.all([
       supabase
         .from("roles_usuarios")
@@ -41,13 +42,9 @@ export async function POST(req: Request) {
         .single(),
     ]);
 
-    if (pacienteRes.error || !pacienteRes.data)
-      throw new Error("Paciente no encontrado en el sistema.");
-
     const precio = psicologoRes.data?.precio_consulta || 50.0;
     const tenant_id = tenantRes.data?.tenant_id || null;
 
-    // 2. DOBLE CANDADO: Verificar que el horario sigue libre
     const { data: conflicto } = await supabase
       .from("citas")
       .select("id")
@@ -61,19 +58,17 @@ export async function POST(req: Request) {
 
     if (conflicto && conflicto.length > 0) {
       return NextResponse.json(
-        {
-          error:
-            "Este horario acaba de ser reservado por alguien más. Por favor, elige otra hora.",
-        },
+        { error: "Este horario acaba de ser reservado por alguien más." },
         { status: 409 },
       );
     }
 
-    const horaInicioObj = new Date(`2000-01-01T${hora_inicio}`);
-    horaInicioObj.setHours(horaInicioObj.getHours() + 1);
-    const hora_fin = horaInicioObj.toTimeString().split(" ")[0];
+    const partesHora = hora_inicio.split(":");
+    const horaInt = parseInt(partesHora[0], 10);
+    const minutoStr = partesHora[1] || "00";
+    const horaFinInt = (horaInt + 1) % 24;
+    const hora_fin = `${horaFinInt.toString().padStart(2, "0")}:${minutoStr}:00`;
 
-    // 3. Crear la Cita
     const { data: cita, error: errCita } = await supabase
       .from("citas")
       .insert({
@@ -81,24 +76,23 @@ export async function POST(req: Request) {
         psicologo_id,
         nombre_paciente: paciente_nombre,
         paciente_correo,
+        paciente_telefono,
         fecha,
         hora_inicio,
         hora_fin,
-        modalidad: "Virtual",
-        estado: "requested",
+        modalidad: modalidad || "Virtual",
+        estado: "confirmed",
       })
       .select("id")
       .single();
 
-    if (errCita || !cita) {
+    if (errCita || !cita)
       throw new Error(`Error en BD al crear cita: ${errCita?.message}`);
-    }
 
     const year = new Date().getFullYear();
     const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const referenciaUnica = `CIT-${year}-${randomCode}`;
 
-    // 4. 🟢 MAGIA AQUÍ: Creamos LA RECAUDACIÓN (Usando el estado "pending")
     const { error: errRecaudacion } = await supabase
       .from("recaudacion_pacientes")
       .insert({
@@ -106,26 +100,40 @@ export async function POST(req: Request) {
         cita_id: cita.id,
         psicologo_id: psicologo_id,
         monto_pagado: precio,
-        estado_pago: "pending", // 🟢 SOLUCIÓN EXACTA AL ERROR: Estado en inglés esperado por la BD
+        estado_pago: "pending",
       });
 
-    if (errRecaudacion) {
+    if (errRecaudacion)
       throw new Error(`Error BD Recaudación: ${errRecaudacion.message}`);
+
+    if (pacienteRes.data) {
+      const { error: errPago } = await supabase.from("pagos").insert({
+        usuario_id: pacienteRes.data.id,
+        referencia_unica: referenciaUnica,
+        entidad_tipo: "cita",
+        entidad_id: cita.id,
+        monto: precio,
+        estado: "pending",
+        metodo_pago: "bank_transfer",
+      });
+
+      if (errPago) throw new Error(`Error BD Pagos: ${errPago.message}`);
     }
 
-    // 5. Crear la Intención de Pago en la tabla general
-    const { error: errPago } = await supabase.from("pagos").insert({
-      usuario_id: pacienteRes.data.id,
-      referencia_unica: referenciaUnica,
-      entidad_tipo: "cita",
-      entidad_id: cita.id,
-      monto: precio,
-      estado: "pendiente_pago",
-      metodo_pago: "bank_transfer",
-    });
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const syncUrl = `${appUrl}/api/calendario/sync`;
 
-    if (errPago) {
-      throw new Error(`Error BD Pagos: ${errPago.message}`);
+      await fetch(syncUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: req.headers.get("Authorization") || "",
+        },
+        body: JSON.stringify({ cita_id: cita.id }),
+      });
+    } catch (syncErr) {
+      console.error("[Google Sync Trigger Error]:", syncErr);
     }
 
     return NextResponse.json({

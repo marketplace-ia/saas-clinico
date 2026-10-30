@@ -59,8 +59,8 @@ export default function ActivacionSecretariaPage() {
         "¡Cuenta vinculada con éxito! Ahora tienes acceso al panel de tu psicólogo.",
       );
 
-      // La mandamos de vuelta al radar para que la redirija correctamente
-      router.push("/login");
+      // 🟢 CORRECCIÓN UX: Redirección directa al panel de trabajo para evitar el bucle de login
+      router.push("/dashboard-secretaria");
     } catch (err: unknown) {
       console.error(err);
       if (err instanceof Error) {

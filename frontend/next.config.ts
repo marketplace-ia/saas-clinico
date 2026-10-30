@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    // Ignora los errores para poder hacer el despliegue de prueba
-    ignoreBuildErrors: true,
+    // 🟢 CORRECCIÓN: Cambiado a false para detectar errores críticos antes del despliegue a producción
+    ignoreBuildErrors: false,
   },
 };
 

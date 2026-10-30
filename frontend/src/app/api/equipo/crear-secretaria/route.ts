@@ -49,19 +49,34 @@ export async function POST(request: Request) {
         },
       });
 
-    if (createError) throw createError;
+    if (createError) {
+      // 🟢 CORRECCIÓN LÓGICA: Si el correo ya existe, enviamos un mensaje amigable
+      // para que usen la página de "activacion-secretaria" que ya construiste.
+      if (
+        createError.message.includes("already registered") ||
+        createError.message.includes("ya está") ||
+        createError.status === 422
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Este correo ya está registrado en Clinesfera. Pide a la secretaria que inicie sesión y use tu 'Código de Clínica' (Tu ID) en la opción de Vincular Cuenta.",
+          },
+          { status: 400 },
+        );
+      }
+      throw createError;
+    }
     const secretariaId = authData.user.id;
 
-    // 4. Registrar en roles_usuarios (Opcional, según tu arquitectura actual)
-    // Nota: Si el ID de roles_usuarios es BIGINT, podrías necesitar un manejo distinto aquí.
-    // Si es UUID (igual al de auth.users), esto funcionará perfectamente.
+    // 4. Registrar en roles_usuarios
     await supabaseAdmin.from("roles_usuarios").insert({
       correo: email,
       rol: "secretaria",
       nombre: nombre,
     });
 
-    // 5. 🟢 LA MAGIA DE SEGURIDAD: Vincular automáticamente la secretaria al psicólogo
+    // 5. Vincular automáticamente la secretaria al psicólogo
     const { error: vinculacionError } = await supabaseAdmin
       .from("secretaria_psicologo")
       .insert({
@@ -71,7 +86,7 @@ export async function POST(request: Request) {
 
     if (vinculacionError) throw vinculacionError;
 
-    // 6. 🟢 LA MAGIA VISUAL: Crear el perfil para que aparezca en la lista "Mi Equipo"
+    // 6. Crear el perfil para que aparezca en la lista "Mi Equipo"
     const { error: perfilError } = await supabaseAdmin
       .from("perfil_secretaria")
       .insert({
@@ -83,6 +98,24 @@ export async function POST(request: Request) {
       });
 
     if (perfilError) throw perfilError;
+
+    // 7. 🟢 BUG CRÍTICO CORREGIDO: Inyectar a la secretaria en el Tenant de la Clínica
+    // Buscar el tenant del psicólogo
+    const { data: tenantData } = await supabaseAdmin
+      .from("tenant_users")
+      .select("tenant_id")
+      .eq("usuario_id", psicologo.id)
+      .single();
+
+    // Inyectar a la secretaria en ese mismo tenant para que CaseGuard le dé acceso
+    if (tenantData) {
+      await supabaseAdmin.from("tenant_users").insert({
+        tenant_id: tenantData.tenant_id,
+        usuario_id: secretariaId,
+        rol: "receptionist",
+        activo: true,
+      });
+    }
 
     return NextResponse.json({
       mensaje: "Secretaria creada, perfil generado y vinculada exitosamente",

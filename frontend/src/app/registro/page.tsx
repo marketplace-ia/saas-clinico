@@ -149,9 +149,7 @@ export default function RegistroPage() {
 
         let rolFinal = "paciente"; // Fallback por defecto
 
-        // 🛡️ SOLUCIÓN: Lógica inteligente de roles
         if (rolPendiente) {
-          // Si recién se registra, guarda su rol en la BD
           try {
             await supabase
               .from("roles_usuarios")
@@ -162,9 +160,8 @@ export default function RegistroPage() {
           } catch (e) {
             console.error("Error guardando rol nuevo:", e);
           }
-          localStorage.removeItem("Clinesfera_registro_rol"); // Limpiamos la memoria
+          localStorage.removeItem("Clinesfera_registro_rol");
         } else {
-          // Si ya estaba registrado, LEE su rol de la BD (NO lo sobreescribe)
           try {
             const { data } = await supabase
               .from("roles_usuarios")
@@ -180,7 +177,6 @@ export default function RegistroPage() {
           }
         }
 
-        // Redirección al dashboard correcto
         if (rolFinal === "psicologo") {
           router.push("/dashboard-psicologo");
         } else {
@@ -205,25 +201,25 @@ export default function RegistroPage() {
     }
 
     try {
-      // Guardamos la intención de rol en memoria antes de disparar el registro
       localStorage.setItem("Clinesfera_registro_rol", tipoCuenta);
 
+      // 1. Enviamos el registro. El Trigger de Postgres se encarga automáticamente de guardar el rol.
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            rol: tipoCuenta,
+            nombre: email.split("@")[0],
+          },
+        },
       });
-      if (signUpError) throw signUpError;
 
-      // Nota: Si el signUp requiere confirmación de email, onAuthStateChange no se disparará aún.
-      // Por si acaso, aseguramos la base de datos aquí también.
-      if (data.user && data.user.email) {
-        await supabase
-          .from("roles_usuarios")
-          .upsert([{ correo: data.user.email, rol: tipoCuenta }], {
-            onConflict: "correo",
-          });
+      if (signUpError) {
+        throw new Error(`Error al registrar: ${signUpError.message}`);
       }
 
+      // 2. Evaluamos la sesión y redirigimos (Ya no hacemos el Upsert redundante)
       if (data.session) {
         if (tipoCuenta === "psicologo") {
           router.push("/dashboard-psicologo");
@@ -234,8 +230,11 @@ export default function RegistroPage() {
         setError("Por favor, revisa tu correo para confirmar tu cuenta.");
       }
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-      else setError(t.error);
+      if (err instanceof Error) {
+        setError(`Error: ${err.message}`);
+      } else {
+        setError(`${t.error}`);
+      }
     } finally {
       setCargando(false);
     }
@@ -256,10 +255,16 @@ export default function RegistroPage() {
         provider: "google",
         options: { redirectTo: `${window.location.origin}/registro` },
       });
-      if (error) throw error;
+
+      if (error) {
+        console.error("ERROR GOOGLE OAUTH:", error);
+        throw new Error(
+          `Error Google Auth: ${error.message || JSON.stringify(error)}`,
+        );
+      }
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-      else setError(t.error);
+      if (err instanceof Error) setError(`🔍 DETALLE: ${err.message}`);
+      else setError(`${t.error} Detalle: ${JSON.stringify(err)}`);
     }
   };
 
@@ -329,8 +334,9 @@ export default function RegistroPage() {
           </div>
 
           <form className="space-y-6" onSubmit={handleRegistro}>
+            {/* 🟢 CORRECCIÓN: Contenedor de error ampliado y seleccionable para poder leer y copiar el error detallado */}
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-4 rounded-xl text-sm font-bold border border-red-100 dark:border-red-500/30">
+              <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-4 rounded-xl text-sm font-bold border border-red-100 dark:border-red-500/30 select-text overflow-auto max-h-32">
                 {error}
               </div>
             )}

@@ -51,7 +51,6 @@ export default function SuperAdminHubPage() {
     "revision" | "aprobado" | "rechazado"
   >("revision");
 
-  // 🛠️ ESTADO PARA EL DIAGNÓSTICO PROFUNDO
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [debugLog, setDebugLog] = useState<any>(null);
 
@@ -78,7 +77,12 @@ export default function SuperAdminHubPage() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session || session.user.email !== "pinedaesteban535@gmail.com") {
+      // 🟢 CORRECCIÓN: Validamos contra la Variable de Entorno en lugar de hardcodear
+      const adminEmail =
+        process.env.NEXT_PUBLIC_SUPERADMIN_EMAIL ||
+        "pinedaesteban535@gmail.com";
+
+      if (!session || session.user.email !== adminEmail) {
         router.push("/login");
         return;
       }
@@ -97,7 +101,6 @@ export default function SuperAdminHubPage() {
         .from("planes")
         .select("id, nombre");
 
-      // 🛠️ DIAGNÓSTICO: Buscar todos los pagos de tipo suscripción sin importar el estado
       const { data: dataPagos, error: errPagos } = await supabase
         .from("pagos")
         .select(`*, perfil_psicologo (nombre_completo, nombre_comercial)`)
@@ -109,7 +112,6 @@ export default function SuperAdminHubPage() {
       if (dataPagos) {
         logInfo.totalPagosSuscripcion = dataPagos.length;
 
-        // Mapear qué estados exactos tienen estos pagos en la base de datos
         dataPagos.forEach((p) => {
           const estadoStr = String(p.estado);
           logInfo.estadosEncontrados[estadoStr] =
@@ -254,7 +256,6 @@ export default function SuperAdminHubPage() {
       (!prof.estado_verificacion && filtroIdentidad === "pendiente"),
   );
 
-  // 🟢 CORRECCIÓN MAGNA: Ampliamos la red de búsqueda para capturar cualquier sinónimo que la base de datos use para "aprobado"
   const pagosFiltrados = pagos.filter((pago) => {
     if (filtroFinanciero === "revision")
       return (
@@ -297,7 +298,6 @@ export default function SuperAdminHubPage() {
         </p>
       </div>
 
-      {/* 🛠️ CONSOLA DE DIAGNÓSTICO DEL SUPERADMIN */}
       {debugLog && (
         <div className="mb-10 bg-slate-900 text-cyan-400 p-6 rounded-3xl font-mono text-xs overflow-auto shadow-2xl border border-slate-700 max-h-fit">
           <h3 className="text-white font-bold mb-4 text-base flex items-center gap-2">
@@ -306,28 +306,6 @@ export default function SuperAdminHubPage() {
           <pre className="whitespace-pre-wrap mb-4">
             {JSON.stringify(debugLog, null, 2)}
           </pre>
-
-          <div className="pt-4 border-t border-slate-700">
-            <h4 className="text-emerald-400 font-bold mb-2">
-              💡 Análisis Automático:
-            </h4>
-            <div className="bg-cyan-900/30 border border-cyan-500/50 p-4 rounded-xl mt-2 text-cyan-100 text-sm leading-relaxed">
-              Revisa el apartado <strong>&quot;estadosEncontrados&quot;</strong>{" "}
-              en el JSON de arriba.
-              <br />
-              <br />• Si ves que un pago tiene estado{" "}
-              <strong>&quot;confirmado&quot;</strong> o{" "}
-              <strong>&quot;activo&quot;</strong>, significa que la API sí
-              funcionó, pero la pestaña estaba buscando estrictamente la palabra
-              &quot;aprobado&quot;. (Ya amplié la red de búsqueda en este código
-              para solucionarlo).
-              <br />• Si el estado sigue siendo{" "}
-              <strong>&quot;comprobante_recibido&quot;</strong>, significa que
-              la API <code>/api/admin/suscripciones/aprobar</code> falló en
-              silencio y no actualizó la base de datos cuando presionaste
-              &quot;Activar SaaS&quot;.
-            </div>
-          </div>
         </div>
       )}
 
