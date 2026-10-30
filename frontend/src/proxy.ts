@@ -57,6 +57,15 @@ export async function proxy(request: NextRequest) {
     );
     const currentPath = request.nextUrl.pathname;
 
+    // 🟢 NUEVO: VÍA LIBRE PARA LA APP MÓVIL (Y OTRAS PETICIONES A LA API)
+    // Dejamos pasar todas las peticiones /api/ sin redirigir al login.
+    if (currentPath.startsWith("/api/")) {
+      console.log(
+        `[PROXY] Petición API detectada desde móvil, permitiendo acceso a: ${currentPath}`,
+      );
+      return supabaseResponse;
+    }
+
     if (
       !user &&
       !currentPath.startsWith("/login") &&
