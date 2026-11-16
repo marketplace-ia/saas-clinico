@@ -19,41 +19,51 @@ interface NotaEvolucion {
   id: string;
   creado_el: string;
   contenido: string;
-  diagnostico_cie10?: string | null;
 }
 
-interface HistoriaClinica {
+interface Anamnesis {
   id: string;
   motivo_consulta: string | null;
-  antecedentes_personales: string | null;
+  antecedentes_medicos: string | null;
   antecedentes_familiares: string | null;
-  formularios_msp?: Record<string, string>;
+  historia_personal: string | null;
+}
+
+interface DocumentoClinico {
+  id: string;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  categoria: string;
+  creado_el: string;
 }
 
 export default function FichaPacientePage() {
   const params = useParams();
   const pacienteId = params.id as string;
 
-  // ESTADOS PRINCIPALES
   const [paciente, setPaciente] = useState<Paciente | null>(null);
-  const [historia, setHistoria] = useState<HistoriaClinica | null>(null);
+  const [historiaBase, setHistoriaBase] = useState<{ id: string } | null>(null);
+  const [anamnesis, setAnamnesis] = useState<Anamnesis | null>(null);
+
   const [cargando, setCargando] = useState(true);
   const [errorUI, setErrorUI] = useState<string | null>(null);
   const [pestanaActiva, setPestanaActiva] = useState("evolucion");
 
-  // MÓDULO: EVOLUCIONES (NOTAS)
   const [notas, setNotas] = useState<NotaEvolucion[]>([]);
   const [cargandoNotas, setCargandoNotas] = useState(false);
   const [modalNotaAbierto, setModalNotaAbierto] = useState(false);
   const [guardandoNota, setGuardandoNota] = useState(false);
+
   const [nuevaNota, setNuevaNota] = useState({
+    fecha: "",
+    hora: "",
     subjetivo: "",
     objetivo: "",
     analisis: "",
     plan: "",
   });
 
-  // MÓDULO: HISTORIA CLÍNICA (ANAMNESIS)
   const [editandoAnamnesis, setEditandoAnamnesis] = useState(false);
   const [guardandoAnamnesis, setGuardandoAnamnesis] = useState(false);
   const [formAnamnesis, setFormAnamnesis] = useState({
@@ -63,7 +73,28 @@ export default function FichaPacientePage() {
     historia_personal: "",
   });
 
-  // 1. CARGA INICIAL (PACIENTE E HISTORIA CLÍNICA)
+  const [documentos, setDocumentos] = useState<DocumentoClinico[]>([]);
+  const [cargandoDocs, setCargandoDocs] = useState(false);
+  const [subiendoDoc, setSubiendoDoc] = useState(false);
+  const [visorDoc, setVisorDoc] = useState<{
+    url: string;
+    tipo: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const inicializarFecha = async () => {
+      setNuevaNota((prev) => ({
+        ...prev,
+        fecha: new Date().toISOString().split("T")[0],
+        hora: new Date().toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      }));
+    };
+    inicializarFecha();
+  }, []);
+
   const cargarDatosPrincipales = useCallback(async () => {
     if (!pacienteId) return;
     try {
@@ -72,7 +103,6 @@ export default function FichaPacientePage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sesión clínica no detectada.");
 
-      // Cargar Paciente
       const { data: dataPaciente, error: errPaciente } = await supabase
         .from("pacientes")
         .select("*")
@@ -82,45 +112,55 @@ export default function FichaPacientePage() {
       if (errPaciente) throw new Error("Paciente no encontrado o sin acceso.");
       setPaciente(dataPaciente);
 
-      // 🟢 CORRECCIÓN ESLINT: Separar consulta para usar const en el error
-      const respuestaHistoria = await supabase
+      const resHistoria = await supabase
         .from("historias_clinicas")
-        .select("*")
+        .select("id")
         .eq("paciente_id", pacienteId)
         .maybeSingle();
 
-      let dataHistoria = respuestaHistoria.data;
-      const errHistoria = respuestaHistoria.error;
-
-      // Autoinicialización si no existe
-      if (!dataHistoria && !errHistoria) {
+      let hBase = resHistoria.data;
+      if (!hBase && !resHistoria.error) {
         const { data: tu } = await supabase
           .from("tenant_users")
           .select("tenant_id")
           .eq("usuario_id", user.id)
+          .maybeSingle();
+        const { data: nuevaHist } = await supabase
+          .from("historias_clinicas")
+          .insert({
+            tenant_id: tu?.tenant_id || null,
+            paciente_id: pacienteId,
+            psicologo_id: user.id,
+          })
+          .select("id")
           .single();
-        if (tu) {
-          const { data: nuevaHist } = await supabase
-            .from("historias_clinicas")
-            .insert({
-              tenant_id: tu.tenant_id,
-              paciente_id: pacienteId,
-              psicologo_id: user.id,
-            })
-            .select()
-            .single();
-          dataHistoria = nuevaHist;
-        }
+        hBase = nuevaHist;
+      }
+      setHistoriaBase(hBase);
+
+      const resAnamnesis = await supabase
+        .from("anamnesis")
+        .select("*")
+        .eq("paciente_id", pacienteId)
+        .maybeSingle();
+
+      let dataAnamnesis = resAnamnesis.data;
+      if (!dataAnamnesis && !resAnamnesis.error) {
+        const { data: nuevaAnamnesis } = await supabase
+          .from("anamnesis")
+          .insert({ paciente_id: pacienteId, psicologo_id: user.id })
+          .select()
+          .single();
+        dataAnamnesis = nuevaAnamnesis;
       }
 
-      if (dataHistoria) {
-        setHistoria(dataHistoria);
+      if (dataAnamnesis) {
+        setAnamnesis(dataAnamnesis);
         setFormAnamnesis({
-          motivo_consulta: dataHistoria.motivo_consulta || "",
-          antecedentes_personales: dataHistoria.antecedentes_personales || "",
-          antecedentes_familiares: dataHistoria.antecedentes_familiares || "",
-          historia_personal:
-            dataHistoria.formularios_msp?.historia_personal || "",
+          motivo_consulta: dataAnamnesis.motivo_consulta || "",
+          antecedentes_personales: dataAnamnesis.antecedentes_medicos || "",
+          antecedentes_familiares: dataAnamnesis.antecedentes_familiares || "",
+          historia_personal: dataAnamnesis.historia_personal || "",
         });
       }
     } catch (error: unknown) {
@@ -130,89 +170,216 @@ export default function FichaPacientePage() {
     }
   }, [pacienteId]);
 
-  // 🟢 CORRECCIÓN REACT: Envoltura asíncrona local
-  useEffect(() => {
-    const iniciarCarga = async () => {
-      await cargarDatosPrincipales();
-    };
-    iniciarCarga();
-  }, [cargarDatosPrincipales]);
-
-  // 2. CARGA DE NOTAS (BÓVEDA PRIVADA)
   const cargarNotas = useCallback(async () => {
-    if (!historia) return;
+    if (!historiaBase) return;
     setCargandoNotas(true);
     try {
       const { data, error } = await supabase
-        .from("notas_clinicas")
+        .from("hcu_evoluciones")
         .select("*")
-        .eq("historia_id", historia.id)
-        .order("creado_el", { ascending: false });
+        .eq("historia_clinica_id", historiaBase.id)
+        .order("creado_en", { ascending: false });
+
       if (error) throw error;
-      setNotas(data || []);
+
+      const notasFormateadas = (data || []).map((d) => ({
+        id: d.id,
+        creado_el: d.creado_en || d.fecha,
+        contenido:
+          `${d.motivo_sesion || ""}\n\n${d.respuesta_paciente || ""}\n\n${d.intervencion_tecnicas || ""}`.trim(),
+      }));
+
+      setNotas(notasFormateadas);
     } catch (error) {
       console.error("Error notas:", error);
     } finally {
       setCargandoNotas(false);
     }
-  }, [historia]);
+  }, [historiaBase]);
 
-  // 🟢 CORRECCIÓN REACT: Envoltura asíncrona local
+  const cargarDocumentos = useCallback(async () => {
+    if (!pacienteId) return;
+    setCargandoDocs(true);
+    try {
+      const { data, error } = await supabase
+        .from("documentos_clinicos")
+        .select("*")
+        .eq("paciente_id", pacienteId)
+        .order("creado_el", { ascending: false });
+      if (error) throw error;
+      setDocumentos(data || []);
+    } catch (error) {
+      console.error("Error al cargar documentos:", error);
+    } finally {
+      setCargandoDocs(false);
+    }
+  }, [pacienteId]);
+
   useEffect(() => {
-    const iniciarNotas = async () => {
-      if (pestanaActiva === "evolucion" && historia) {
-        await cargarNotas();
+    const ejecutarCargas = async () => {
+      await cargarDatosPrincipales();
+      if (pestanaActiva === "evolucion" && historiaBase) await cargarNotas();
+      if (pestanaActiva === "documentos") await cargarDocumentos();
+    };
+    ejecutarCargas();
+  }, [
+    pestanaActiva,
+    historiaBase,
+    cargarDatosPrincipales,
+    cargarNotas,
+    cargarDocumentos,
+  ]);
+
+  const subirDocumento = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("El archivo es demasiado grande. Máximo 10MB.");
+      return;
+    }
+
+    setSubiendoDoc(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sin sesión activa.");
+
+      let tenantID = null;
+      const { data: tu } = await supabase
+        .from("tenant_users")
+        .select("tenant_id")
+        .eq("usuario_id", session.user.id)
+        .maybeSingle();
+
+      if (tu?.tenant_id) {
+        tenantID = tu.tenant_id;
+      } else {
+        const { data: hc } = await supabase
+          .from("historias_clinicas")
+          .select("tenant_id")
+          .eq("paciente_id", pacienteId)
+          .maybeSingle();
+        if (hc?.tenant_id) tenantID = hc.tenant_id;
       }
-    };
-    iniciarNotas();
-  }, [pestanaActiva, historia, cargarNotas]);
 
-  // 🤖 3. RECEPTORES DEL ASISTENTE IA (INTACTOS)
-  useEffect(() => {
-    const abrirModalNota = () => {
-      setPestanaActiva("evolucion");
-      setModalNotaAbierto(true);
-    };
-    const abrirEdicionAnamnesis = () => {
-      setPestanaActiva("anamnesis");
-      setEditandoAnamnesis(true);
-    };
-    window.addEventListener("BOT_NUEVA_NOTA_SOAP", abrirModalNota);
-    window.addEventListener("BOT_EDITAR_ANAMNESIS", abrirEdicionAnamnesis);
-    return () => {
-      window.removeEventListener("BOT_NUEVA_NOTA_SOAP", abrirModalNota);
-      window.removeEventListener("BOT_EDITAR_ANAMNESIS", abrirEdicionAnamnesis);
-    };
-  }, []);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${pacienteId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
-  // 4. GUARDADO EN LA NUEVA ARQUITECTURA
+      const { error: uploadError } = await supabase.storage
+        .from("documentos_pacientes")
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error("🚨 REPORTE DE STORAGE:", uploadError);
+        throw new Error(
+          `STORAGE RECHAZADO: ${uploadError.message || "La política RLS de Storage bloqueó la subida. Revisa los permisos del bucket."}`,
+        );
+      }
+
+      const { error: dbError } = await supabase
+        .from("documentos_clinicos")
+        .insert({
+          tenant_id: tenantID,
+          paciente_id: pacienteId,
+          psicologo_id: session.user.id,
+          storage_path: fileName,
+          mime_type: file.type,
+          size_bytes: file.size,
+          categoria: "general",
+        });
+
+      if (dbError) {
+        console.error("🚨 REPORTE DE BASE DE DATOS:", dbError);
+        throw new Error(
+          `DB RECHAZO: ${dbError.message || "La política RLS de documentos_clinicos bloqueó la escritura."}`,
+        );
+      }
+
+      alert("✅ Archivo guardado y encriptado exitosamente en la bóveda.");
+      cargarDocumentos();
+    } catch (error: unknown) {
+      console.error("Error al subir archivo:", error);
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert("Error desconocido al procesar el archivo.");
+      }
+    } finally {
+      setSubiendoDoc(false);
+      e.target.value = "";
+    }
+  };
+
+  const verDocumentoSeguro = async (path: string, mimeType: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("documentos_pacientes")
+        .createSignedUrl(path, 60);
+
+      if (error || !data) {
+        console.error("Error de Supabase al pedir firma:", error);
+        throw new Error("No se pudo obtener la llave de acceso.");
+      }
+
+      setVisorDoc({
+        url: data.signedUrl,
+        tipo: mimeType.includes("pdf") ? "pdf" : "imagen",
+      });
+    } catch (error: unknown) {
+      console.error(error);
+      alert("Acceso denegado al archivo.");
+    }
+  };
+
+  const formatearTamaño = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+    else return (bytes / 1048576).toFixed(1) + " MB";
+  };
+
   const guardarNota = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!historia) return;
+    if (!historiaBase)
+      return alert("Error: El expediente base no está inicializado.");
     setGuardandoNota(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const contenidoEstructurado = `SUBJETIVO:\n${nuevaNota.subjetivo}\n\nOBJETIVO:\n${nuevaNota.objetivo}\n\nANÁLISIS:\n${nuevaNota.analisis}\n\nPLAN:\n${nuevaNota.plan}`;
-
-      const { error } = await supabase.from("notas_clinicas").insert([
+      const { error } = await supabase.from("hcu_evoluciones").insert([
         {
-          historia_id: historia.id,
+          historia_clinica_id: historiaBase.id,
           psicologo_id: session?.user.id,
-          tipo_nota: "evolucion",
-          contenido: contenidoEstructurado,
+          fecha: nuevaNota.fecha,
+          hora: nuevaNota.hora,
+          motivo_sesion: `SUBJETIVO Y OBJETIVO:\n${nuevaNota.subjetivo}\n${nuevaNota.objetivo}`,
+          respuesta_paciente: `ANÁLISIS CLÍNICO:\n${nuevaNota.analisis}`,
+          intervencion_tecnicas: `PLAN TERAPÉUTICO:\n${nuevaNota.plan}`,
         },
       ]);
-      if (error) throw error;
 
-      setNuevaNota({ subjetivo: "", objetivo: "", analisis: "", plan: "" });
+      if (error) {
+        alert(
+          "🚨 Detalle del error de base de datos:\n" +
+            JSON.stringify(error, null, 2),
+        );
+        throw error;
+      }
+
+      setNuevaNota({
+        ...nuevaNota,
+        subjetivo: "",
+        objetivo: "",
+        analisis: "",
+        plan: "",
+      });
       setModalNotaAbierto(false);
       cargarNotas();
     } catch (error) {
       console.error(error);
-      alert("Error al guardar la evolución médica en bóveda.");
     } finally {
       setGuardandoNota(false);
     }
@@ -220,28 +387,31 @@ export default function FichaPacientePage() {
 
   const guardarAnamnesis = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!historia) return;
+    if (!anamnesis) return alert("Error: El expediente anamnesis no existe.");
     setGuardandoAnamnesis(true);
     try {
       const { error } = await supabase
-        .from("historias_clinicas")
+        .from("anamnesis")
         .update({
           motivo_consulta: formAnamnesis.motivo_consulta,
-          antecedentes_personales: formAnamnesis.antecedentes_personales,
+          antecedentes_medicos: formAnamnesis.antecedentes_personales,
           antecedentes_familiares: formAnamnesis.antecedentes_familiares,
-          formularios_msp: {
-            historia_personal: formAnamnesis.historia_personal,
-          },
+          historia_personal: formAnamnesis.historia_personal,
         })
-        .eq("id", historia.id);
+        .eq("id", anamnesis.id);
 
-      if (error) throw error;
+      if (error) {
+        alert(
+          "🚨 Detalle del error de base de datos:\n" +
+            JSON.stringify(error, null, 2),
+        );
+        throw error;
+      }
 
       await cargarDatosPrincipales();
       setEditandoAnamnesis(false);
     } catch (error) {
       console.error(error);
-      alert("Error al guardar la Historia Clínica.");
     } finally {
       setGuardandoAnamnesis(false);
     }
@@ -322,14 +492,6 @@ export default function FichaPacientePage() {
               <span className="flex items-center gap-1.5">
                 🆔 ID: {paciente.identificacion || "N/A"}
               </span>
-              {paciente.fecha_nacimiento && (
-                <span className="flex items-center gap-1.5">
-                  🎂 Edad:{" "}
-                  {new Date().getFullYear() -
-                    new Date(paciente.fecha_nacimiento).getFullYear()}{" "}
-                  años
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -354,7 +516,7 @@ export default function FichaPacientePage() {
       <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 min-h-100">
         {pestanaActiva === "evolucion" && (
           <div className="animate-in fade-in duration-300">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+            <div className="flex justify-between items-center mb-8">
               <div>
                 <h3 className="text-2xl font-black text-slate-900">
                   Bóveda de Evoluciones
@@ -365,25 +527,11 @@ export default function FichaPacientePage() {
               </div>
               <button
                 onClick={() => setModalNotaAbierto(true)}
-                className="bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-700 transition-all shadow-md flex items-center gap-2 shrink-0"
+                className="bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-700 transition-all shadow-md"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 4v16m8-8H4"
-                  ></path>
-                </svg>{" "}
                 Nueva Nota SOAP
               </button>
             </div>
-
             {cargandoNotas ? (
               <div className="py-12 flex justify-center">
                 <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -403,12 +551,7 @@ export default function FichaPacientePage() {
                     </div>
                     <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm">
                       <h4 className="text-lg font-black text-slate-900 mb-4">
-                        {new Date(nota.creado_el).toLocaleDateString("es-ES", {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
+                        {new Date(nota.creado_el).toLocaleDateString()}
                       </h4>
                       <p className="text-slate-700 bg-slate-50 p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap font-medium">
                         {nota.contenido}
@@ -423,42 +566,28 @@ export default function FichaPacientePage() {
 
         {pestanaActiva === "anamnesis" && (
           <div className="animate-in fade-in duration-300">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+            <div className="flex justify-between items-center mb-8">
               <div>
                 <h3 className="text-2xl font-black text-slate-900">
                   Historia Clínica y Anamnesis
                 </h3>
                 <p className="text-slate-500 font-medium mt-1">
-                  Antecedentes estructurados (MSP).
+                  Antecedentes estructurados.
                 </p>
               </div>
               {!editandoAnamnesis && (
                 <button
                   onClick={() => setEditandoAnamnesis(true)}
-                  className="bg-slate-900 text-white font-bold px-6 py-3 rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center gap-2"
+                  className="bg-slate-900 text-white font-bold px-6 py-3 rounded-xl hover:bg-slate-800 transition-all shadow-md"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    ></path>
-                  </svg>
                   Editar Expediente
                 </button>
               )}
             </div>
-
             {editandoAnamnesis ? (
               <form
                 onSubmit={guardarAnamnesis}
-                className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6 animate-in slide-in-from-bottom-4"
+                className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6"
               >
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
@@ -474,14 +603,13 @@ export default function FichaPacientePage() {
                         motivo_consulta: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900"
-                    placeholder="¿Por qué acude a terapia el paciente?..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
                   ></textarea>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Antecedentes Personales / Psiquiátricos
+                      Antecedentes Personales / Médicos
                     </label>
                     <textarea
                       rows={4}
@@ -492,7 +620,7 @@ export default function FichaPacientePage() {
                           antecedentes_personales: e.target.value,
                         })
                       }
-                      className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
                     ></textarea>
                   </div>
                   <div>
@@ -508,7 +636,7 @@ export default function FichaPacientePage() {
                           antecedentes_familiares: e.target.value,
                         })
                       }
-                      className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
                     ></textarea>
                   </div>
                 </div>
@@ -525,28 +653,23 @@ export default function FichaPacientePage() {
                         historia_personal: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900"
-                    placeholder="Infancia, educación, relaciones sociales..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
                   ></textarea>
                 </div>
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setEditandoAnamnesis(false)}
-                    className="px-6 py-3 font-bold text-slate-500 hover:bg-slate-200 rounded-xl transition-colors"
+                    className="px-6 py-3 font-bold text-slate-500 hover:bg-slate-200 rounded-xl"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={guardandoAnamnesis}
-                    className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg flex items-center min-w-50 justify-center"
+                    className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl"
                   >
-                    {guardandoAnamnesis ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      "Guardar Expediente"
-                    )}
+                    {guardandoAnamnesis ? "..." : "Guardar Expediente"}
                   </button>
                 </div>
               </form>
@@ -557,7 +680,7 @@ export default function FichaPacientePage() {
                     Motivo de Consulta
                   </h5>
                   <p className="text-indigo-950 font-medium whitespace-pre-wrap">
-                    {historia?.motivo_consulta || "Sin registro."}
+                    {anamnesis?.motivo_consulta || "Sin registro."}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -566,7 +689,7 @@ export default function FichaPacientePage() {
                   </h5>
                   <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 min-h-24">
                     <p className="text-slate-700 whitespace-pre-wrap">
-                      {historia?.antecedentes_personales || "Sin registro."}
+                      {anamnesis?.antecedentes_medicos || "Sin registro."}
                     </p>
                   </div>
                 </div>
@@ -576,7 +699,7 @@ export default function FichaPacientePage() {
                   </h5>
                   <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 min-h-24">
                     <p className="text-slate-700 whitespace-pre-wrap">
-                      {historia?.antecedentes_familiares || "Sin registro."}
+                      {anamnesis?.antecedentes_familiares || "Sin registro."}
                     </p>
                   </div>
                 </div>
@@ -586,8 +709,7 @@ export default function FichaPacientePage() {
                   </h5>
                   <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 min-h-24">
                     <p className="text-slate-700 whitespace-pre-wrap">
-                      {historia?.formularios_msp?.historia_personal ||
-                        "Sin registro."}
+                      {anamnesis?.historia_personal || "Sin registro."}
                     </p>
                   </div>
                 </div>
@@ -598,20 +720,157 @@ export default function FichaPacientePage() {
 
         {pestanaActiva === "documentos" && (
           <div className="animate-in fade-in duration-300">
-            <h3 className="text-xl font-black text-slate-900 mb-6">
-              Archivos Adjuntos
-            </h3>
-            <div className="p-8 border-2 border-dashed border-slate-200 rounded-2xl text-center">
-              <p className="text-slate-500 font-medium">
-                Módulo de documentos en construcción para la Fase 4.
-              </p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900">
+                  Bóveda de Documentos
+                </h3>
+                <p className="text-slate-500 font-medium mt-1">
+                  Exámenes, informes y consentimientos encriptados.
+                </p>
+              </div>
+
+              <label
+                className={`cursor-pointer bg-slate-900 text-white font-bold px-6 py-3 rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center gap-2 ${subiendoDoc ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                  ></path>
+                </svg>
+                {subiendoDoc ? "Subiendo..." : "Subir Archivo"}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,image/*"
+                  onChange={subirDocumento}
+                  disabled={subiendoDoc}
+                />
+              </label>
             </div>
+
+            {cargandoDocs ? (
+              <div className="py-12 flex justify-center">
+                <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+              </div>
+            ) : documentos.length === 0 ? (
+              <div className="p-12 border-2 border-dashed border-slate-200 rounded-3xl text-center bg-slate-50/50">
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                  📁
+                </div>
+                <h4 className="text-lg font-bold text-slate-700">
+                  Sin documentos adjuntos
+                </h4>
+                <p className="text-slate-500 text-sm mt-1">
+                  Sube exámenes o informes clínicos del paciente aquí.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {documentos.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <div
+                          className={`p-3 rounded-xl ${doc.mime_type.includes("pdf") ? "bg-red-50 text-red-500" : "bg-blue-50 text-blue-500"}`}
+                        >
+                          {doc.mime_type.includes("pdf") ? (
+                            <svg
+                              className="w-6 h-6"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="w-6 h-6"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
+                          {formatearTamaño(doc.size_bytes)}
+                        </span>
+                      </div>
+                      <h4
+                        className="text-sm font-bold text-slate-900 break-all mb-1 truncate"
+                        title={doc.storage_path.split("/").pop()}
+                      >
+                        {doc.storage_path.split("/").pop()}
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Subido: {new Date(doc.creado_el).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        verDocumentoSeguro(doc.storage_path, doc.mime_type)
+                      }
+                      className="mt-4 w-full bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold py-2 rounded-xl text-sm transition-colors border border-slate-200"
+                    >
+                      Abrir Documento
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* 🟢 VISOR DE DOCUMENTOS */}
+      {visorDoc && (
+        <div
+          className="fixed inset-0 bg-slate-900/90 z-10000 flex items-center justify-center p-4 backdrop-blur-sm"
+          onClick={() => setVisorDoc(null)}
+        >
+          <div
+            className="relative max-w-5xl w-full h-[90vh] flex flex-col items-center bg-transparent"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex justify-end mb-4">
+              <button
+                onClick={() => setVisorDoc(null)}
+                className="text-white hover:text-rose-400 font-black bg-slate-800 px-4 py-2 rounded-xl"
+              >
+                Cerrar Visor ✕
+              </button>
+            </div>
+            {visorDoc.tipo === "pdf" ? (
+              <iframe
+                src={visorDoc.url}
+                className="w-full h-full rounded-2xl bg-white shadow-2xl"
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={visorDoc.url}
+                alt="Documento Médico"
+                className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border-4 border-slate-800"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Notas SOAP */}
       {modalNotaAbierto && (
-        <div className="fixed inset-0 bg-slate-900/60 z-10000 flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-slate-900/60 z-9000 flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-2xl font-black text-slate-900">
@@ -619,7 +878,7 @@ export default function FichaPacientePage() {
               </h2>
               <button
                 onClick={() => setModalNotaAbierto(false)}
-                className="text-slate-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm"
+                className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm"
               >
                 ❌
               </button>
@@ -689,7 +948,7 @@ export default function FichaPacientePage() {
                   disabled={guardandoNota}
                   className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg min-w-50"
                 >
-                  {guardandoNota ? "..." : "Guardar Bóveda"}
+                  {guardandoNota ? "Guardando..." : "Guardar Bóveda"}
                 </button>
               </div>
             </form>

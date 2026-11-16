@@ -10,7 +10,6 @@ export async function proxy(request: NextRequest) {
   });
 
   try {
-    console.log("[PROXY] 1. Creando cliente Supabase...");
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -39,7 +38,6 @@ export async function proxy(request: NextRequest) {
         setTimeout(() => reject(new Error("Timeout Supabase - 8s")), ms),
       );
 
-    console.log("[PROXY] 2. Consultando auth.getUser()...");
     let user: User | null = null;
 
     try {
@@ -52,20 +50,14 @@ export async function proxy(request: NextRequest) {
       console.error("[PROXY DIAGNÓSTICO] El servidor no pudo autenticar:", e);
     }
 
-    console.log(
-      `[PROXY] 3. Usuario obtenido: ${user ? user.email : "Ninguno"}`,
-    );
     const currentPath = request.nextUrl.pathname;
 
-    // 🟢 NUEVO: VÍA LIBRE PARA LA APP MÓVIL (Y OTRAS PETICIONES A LA API)
-    // Dejamos pasar todas las peticiones /api/ sin redirigir al login.
+    // VÍA LIBRE PARA LA APP MÓVIL
     if (currentPath.startsWith("/api/")) {
-      console.log(
-        `[PROXY] Petición API detectada desde móvil, permitiendo acceso a: ${currentPath}`,
-      );
       return supabaseResponse;
     }
 
+    // 🟢 LISTA BLANCA ACTUALIZADA: Se agregan las rutas de recuperación
     if (
       !user &&
       !currentPath.startsWith("/login") &&
@@ -77,29 +69,26 @@ export async function proxy(request: NextRequest) {
       !currentPath.startsWith("/privacidad") &&
       !currentPath.startsWith("/proximamente") &&
       !currentPath.startsWith("/p/") &&
-      !currentPath.startsWith("/api/") &&
+      !currentPath.startsWith("/recuperar") &&
+      !currentPath.startsWith("/actualizar-password") &&
       currentPath !== "/"
     ) {
-      console.log("[PROXY] 4. Redirigiendo a /login (Usuario no autenticado)");
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
     if (user) {
-      // 🟢 CORRECCIÓN: Uso de Variables de Entorno para el correo del Administrador
+      // PROTECCIÓN DEL PANEL DE ADMINISTRADOR (Clinesfera SuperAdmin)
       if (currentPath.startsWith("/admin")) {
         const adminEmail =
           process.env.NEXT_PUBLIC_SUPERADMIN_EMAIL ||
           "pinedaesteban535@gmail.com";
-
         if (user.email !== adminEmail) {
-          console.warn(
-            "[PROXY] Intento de acceso denegado a panel /admin por usuario no autorizado.",
+          return NextResponse.redirect(
+            new URL("/dashboard-psicologo", request.url),
           );
-          return NextResponse.redirect(new URL("/", request.url));
         }
       }
 
-      console.log("[PROXY] 4. Buscando rol en base de datos...");
       let rol = "paciente";
 
       try {
@@ -114,19 +103,12 @@ export async function proxy(request: NextRequest) {
           timeout(8000),
         ]);
 
-        if (roleResult.error)
-          console.error("[PROXY ERROR] Fallo al buscar rol:", roleResult.error);
         if (roleResult.data && roleResult.data.rol) {
           rol = roleResult.data.rol as string;
         }
       } catch (e) {
-        console.error(
-          "[PROXY DIAGNÓSTICO] Error al conectar con Base de Datos:",
-          e,
-        );
+        console.error("[PROXY ERROR] Fallo al buscar rol:", e);
       }
-
-      console.log(`[PROXY] 5. Rol verificado: ${rol}`);
 
       if (
         currentPath.startsWith("/dashboard-psicologo") &&
@@ -184,13 +166,13 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    console.log("[PROXY END] 6. Todo correcto. Dejando pasar.");
     return supabaseResponse;
   } catch (error) {
     console.error("\n[PROXY ERROR CRÍTICO]:", error);
     return supabaseResponse;
   }
 }
+
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",

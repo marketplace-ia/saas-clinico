@@ -2,9 +2,8 @@
 
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { assistantBrain } from "./core/IntentResolver";
-import { chatEventBus } from "./EventBus";
 import { AppRole } from "./types";
+import { chatEventBus } from "./EventBus";
 
 interface Message {
   id: string;
@@ -40,66 +39,94 @@ export const AssistantProvider = ({
     {
       id: "welcome-1",
       sender: "assistant",
-      text: "¡Hola! 👋 Soy tu asistente de plataforma. Puedo ayudarte a navegar, encontrar funciones o guiarte paso a paso. ¿Qué necesitas hacer hoy?",
+      text: "¡Hola! 👋 Soy el Copiloto Clínico de Clinesfera potenciado por IA. Estoy conectado a toda la plataforma. ¿En qué te puedo asistir hoy?",
       quickActions:
         userRole === "psicologo"
-          ? ["Ver mi agenda", "Crear nuevo paciente", "Ir a historias clínicas"]
-          : ["Agendar una cita", "Ver mis citas", "Explorar recursos"],
+          ? ["Llevame a mi Agenda", "Registrar paciente", "Ver mis ingresos"]
+          : ["Agendar una cita", "Explorar recursos"],
     },
   ]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
 
-    // 1. Agregar mensaje del usuario
     const userMsg: Message = {
       id: Date.now().toString(),
       sender: "user",
       text,
     };
+
+    const historialActual = [...messages];
+
     setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
 
-    // 2. Simular tiempo de pensamiento (UX) y consultar al Cerebro
-    setTimeout(() => {
-      const brainContext = {
-        userRole,
-        currentRoute: pathname || "/",
-        isModalOpen: false, // Se conectará dinámicamente después
-        pageElements: [],
-      };
+    try {
+      const res = await fetch("/api/copilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mensaje: text,
+          historial: historialActual,
+          contextoApp: {
+            userRole,
+            currentRoute: pathname || "/",
+          },
+        }),
+      });
 
-      const resolution = assistantBrain.processInput(text, brainContext);
+      // 🟢 CORRECCIÓN: Extractor de Errores Detallados
+      if (!res.ok) {
+        let errorDetallado = "Fallo desconocido en el servidor.";
+        try {
+          const errorData = await res.json();
+          errorDetallado =
+            errorData.detalles || errorData.error || res.statusText;
+        } catch {
+          errorDetallado = `Error HTTP ${res.status}: ${res.statusText}`;
+        }
+        throw new Error(`[Detalle del Backend]: ${errorDetallado}`);
+      }
 
-      // 3. Ejecutar la acción si existe (Ruteo o Evento de UI)
-      if (resolution.action) {
-        if (resolution.action.type === "NAVIGATE") {
-          router.push(resolution.action.payload);
-        } else if (resolution.action.type === "TRIGGER_EVENT") {
-          // 🟢 NUEVO: Disparamos el evento a nivel global (window)
-          window.dispatchEvent(
-            new CustomEvent("bot-action", {
-              detail: { action: resolution.action.payload },
-            }),
-          );
-          // Mantenemos el EventBus por si acaso
-          if (chatEventBus && typeof chatEventBus.emit === "function") {
-            chatEventBus.emit(resolution.action.payload, undefined);
-          }
+      const iaRespuesta = await res.json();
+
+      if (iaRespuesta.accion === "NAVIGATE" && iaRespuesta.payload) {
+        router.push(iaRespuesta.payload);
+      } else if (
+        iaRespuesta.accion === "TRIGGER_EVENT" &&
+        iaRespuesta.payload
+      ) {
+        window.dispatchEvent(new Event(iaRespuesta.payload));
+        if (chatEventBus && typeof chatEventBus.emit === "function") {
+          type DynamicEmitFunction = (event: string, data: undefined) => void;
+          const emitirEvento =
+            chatEventBus.emit as unknown as DynamicEmitFunction;
+          emitirEvento(iaRespuesta.payload, undefined);
         }
       }
 
-      // 4. Agregar la respuesta del asistente
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: "assistant",
-        text: resolution.message,
-        quickActions: resolution.suggestedQuickActions,
+        text: iaRespuesta.respuesta_texto,
+        quickActions: iaRespuesta.sugerencias || [],
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
+    } catch (error) {
+      // 🟢 Ahora veremos el error real de Gemini en la consola del navegador
+      console.error("🚨 Error del Copiloto capturado:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          sender: "assistant",
+          text: `Hubo una interferencia en mi conexión neural. ${error instanceof Error ? error.message : ""}`,
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 800);
+    }
   };
 
   return (

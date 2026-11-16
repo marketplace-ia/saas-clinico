@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "../../../../lib/supabase"; // 🟢 BD Conectada
 
 type TabTipo = "alertas" | "logros";
 
@@ -9,9 +10,9 @@ interface Notificacion {
   id: string;
   titulo: string;
   mensaje: string;
-  tiempo: string;
   tipo: "cita" | "comunidad" | "sistema";
   leida: boolean;
+  creado_el: string;
 }
 
 interface Insignia {
@@ -25,61 +26,31 @@ interface Insignia {
 
 export default function CentroNotificacionesPage() {
   const [tabActiva, setTabActiva] = useState<TabTipo>("alertas");
+  const [cargando, setCargando] = useState(true);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [errorBD, setErrorBD] = useState<string | null>(null);
 
-  // MOCK: Nivel y Experiencia del Usuario (Gamificación - Punto 21)
-  const nivelActual = 4;
-  const xpActual = 1850;
-  const xpSiguienteNivel = 2500;
+  const nivelActual = 1;
+  const xpActual = 0;
+  const xpSiguienteNivel = 1000;
   const progresoXP = (xpActual / xpSiguienteNivel) * 100;
 
-  // MOCK: Base de datos de notificaciones (Punto 18)
-  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([
-    {
-      id: "notif-1",
-      titulo: "Nueva cita agendada",
-      mensaje:
-        "Ana Torres ha agendado una sesión virtual para el 18 de Octubre a las 15:00.",
-      tiempo: "Hace 10 min",
-      tipo: "cita",
-      leida: false,
-    },
-    {
-      id: "notif-2",
-      titulo: "¡Respuesta en tu debate!",
-      mensaje:
-        "El Dr. Luis Paz ha respondido a tu pregunta sobre Evaluación Neuropsicológica.",
-      tiempo: "Hace 2 horas",
-      tipo: "comunidad",
-      leida: false,
-    },
-    {
-      id: "notif-3",
-      titulo: "Certificado Emitido",
-      mensaje:
-        "Tu certificado de 'Taller de Regulación Emocional' ya está disponible para descarga.",
-      tiempo: "Ayer",
-      tipo: "sistema",
-      leida: true,
-    },
-  ]);
-
-  // MOCK: Sistema de Insignias (Gamificación - Punto 21)
   const insignias: Insignia[] = [
     {
       id: "ins-1",
       nombre: "Mente Inquisitiva",
       descripcion: "Has creado más de 5 debates en el muro comunitario.",
       icono: "🧠",
-      desbloqueada: true,
-      color: "from-purple-500 to-indigo-600",
+      desbloqueada: false,
+      color: "from-slate-300 to-slate-400",
     },
     {
       id: "ins-2",
       nombre: "Profesional Verificado",
       descripcion: "Tu título ha sido validado por el equipo de Clinesfera.",
       icono: "🛡️",
-      desbloqueada: true,
-      color: "from-emerald-400 to-teal-500",
+      desbloqueada: false,
+      color: "from-slate-300 to-slate-400",
     },
     {
       id: "ins-3",
@@ -99,8 +70,78 @@ export default function CentroNotificacionesPage() {
     },
   ];
 
-  const marcarComoLeidas = () => {
-    setNotificaciones(notificaciones.map((n) => ({ ...n, leida: true })));
+  useEffect(() => {
+    let montado = true;
+
+    const cargarNotificaciones = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          if (montado) setCargando(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("notificaciones")
+          .select("*")
+          .eq("usuario_id", session.user.id)
+          .order("creado_el", { ascending: false });
+
+        if (error) throw error;
+
+        if (montado && data) {
+          setNotificaciones(data as Notificacion[]);
+          setErrorBD(null);
+        }
+      } catch (error) {
+        if (montado) {
+          console.error("Error cargando notificaciones:", error);
+          setErrorBD("Error de conexión al cargar notificaciones.");
+        }
+      } finally {
+        if (montado) setCargando(false);
+      }
+    };
+
+    cargarNotificaciones();
+
+    return () => {
+      montado = false;
+    };
+  }, []);
+
+  const marcarComoLeidas = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase
+        .from("notificaciones")
+        .update({ leida: true })
+        .eq("usuario_id", session.user.id)
+        .eq("leida", false);
+
+      if (error) throw error;
+
+      setNotificaciones(notificaciones.map((n) => ({ ...n, leida: true })));
+    } catch (error) {
+      console.error("Error al marcar como leídas:", error);
+    }
+  };
+
+  const formatearFecha = (fechaStr: string) => {
+    const fecha = new Date(fechaStr);
+    return fecha.toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const getIconoNotificacion = (tipo: string) => {
@@ -164,7 +205,6 @@ export default function CentroNotificacionesPage() {
 
   return (
     <div className="w-full max-w-5xl mx-auto animate-in fade-in duration-700 slide-in-from-bottom-4 pb-12">
-      {/* 1. CABECERA */}
       <div className="mb-8">
         <Link
           href="/comunidad"
@@ -177,7 +217,6 @@ export default function CentroNotificacionesPage() {
         </h1>
       </div>
 
-      {/* 2. HEADER DE GAMIFICACIÓN (RESUMEN) */}
       <div className="bg-slate-900 rounded-4xl p-8 mb-8 text-white relative overflow-hidden shadow-xl flex flex-col md:flex-row items-center gap-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
 
@@ -186,14 +225,14 @@ export default function CentroNotificacionesPage() {
             <span className="text-3xl font-black text-white">
               N{nivelActual}
             </span>
-            <div className="absolute -bottom-2 -right-2 bg-amber-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full border-2 border-slate-900 shadow-sm">
-              Rango Plata
+            <div className="absolute -bottom-2 -right-2 bg-slate-500 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full border-2 border-slate-900 shadow-sm">
+              Iniciado
             </div>
           </div>
         </div>
 
         <div className="relative z-10 flex-1 w-full text-center md:text-left">
-          <h2 className="text-2xl font-black mb-2">Terapeuta Consolidado</h2>
+          <h2 className="text-2xl font-black mb-2">Miembro de la Comunidad</h2>
           <p className="text-slate-400 font-medium text-sm mb-4">
             Participa en foros, dicta talleres y completa tu perfil para subir
             de nivel.
@@ -213,7 +252,6 @@ export default function CentroNotificacionesPage() {
         </div>
       </div>
 
-      {/* 3. NAVEGACIÓN (TABS) */}
       <div className="flex overflow-x-auto hide-scrollbar gap-2 mb-8 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-full md:w-fit">
         <button
           onClick={() => setTabActiva("alertas")}
@@ -234,9 +272,13 @@ export default function CentroNotificacionesPage() {
         </button>
       </div>
 
-      {/* 4. CONTENIDO DE LAS PESTAÑAS */}
+      {errorBD && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 text-sm">
+          🚨 {errorBD}
+        </div>
+      )}
+
       <div className="animate-in slide-in-from-bottom-4 duration-500">
-        {/* PESTAÑA: NOTIFICACIONES */}
         {tabActiva === "alertas" && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -254,9 +296,13 @@ export default function CentroNotificacionesPage() {
             </div>
 
             <div className="divide-y divide-slate-100">
-              {notificaciones.length === 0 ? (
+              {cargando ? (
+                <div className="p-12 flex justify-center">
+                  <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                </div>
+              ) : notificaciones.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 font-medium">
-                  No tienes notificaciones nuevas.
+                  No tienes notificaciones nuevas en este momento.
                 </div>
               ) : (
                 notificaciones.map((notif) => (
@@ -273,7 +319,7 @@ export default function CentroNotificacionesPage() {
                           {notif.titulo}
                         </h3>
                         <span className="text-xs font-bold text-slate-400 whitespace-nowrap ml-4">
-                          {notif.tiempo}
+                          {formatearFecha(notif.creado_el)}
                         </span>
                       </div>
                       <p
@@ -292,7 +338,6 @@ export default function CentroNotificacionesPage() {
           </div>
         )}
 
-        {/* PESTAÑA: GAMIFICACIÓN / INSIGNIAS */}
         {tabActiva === "logros" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {insignias.map((ins) => (
@@ -311,7 +356,6 @@ export default function CentroNotificacionesPage() {
                 <p className="text-slate-500 text-xs font-medium leading-relaxed">
                   {ins.descripcion}
                 </p>
-
                 <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
                   <span
                     className={`text-[10px] font-black uppercase tracking-wider ${ins.desbloqueada ? "text-emerald-500" : "text-slate-400"}`}

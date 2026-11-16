@@ -3,22 +3,30 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
 
+type EstadoSRI =
+  | "pendiente_emision"
+  | "en_proceso"
+  | "autorizada"
+  | "rechazada"
+  | "anulada";
+
 interface FacturaOperacion {
   pago_id: string;
   paciente_nombre: string;
-  referencia_interna: string;
   monto: number;
   fecha_pago: string;
   factura_id?: string;
   secuencial_tributario?: string | null;
-  estado_sri:
-    | "pendiente_emision"
-    | "en_proceso"
-    | "autorizada"
-    | "rechazada"
-    | "anulada";
+  estado_sri: EstadoSRI;
   xml_url?: string | null;
   ride_url?: string | null;
+}
+
+// 🟢 CORRECCIÓN LINTER: Tipado estricto en lugar de "any"
+interface CitaInfo {
+  id: string;
+  nombre_paciente?: string;
+  paciente_nombre?: string;
 }
 
 export default function CentroFacturacionSecretaria() {
@@ -29,6 +37,7 @@ export default function CentroFacturacionSecretaria() {
     "pendientes" | "autorizadas" | "proceso_rechazadas"
   >("pendientes");
   const [procesando, setProcesando] = useState<string | null>(null);
+  const [psicologoId, setPsicologoId] = useState<string | null>(null);
 
   const cargarOperaciones = useCallback(
     async (mostrarLoader: boolean = false) => {
@@ -43,73 +52,80 @@ export default function CentroFacturacionSecretaria() {
         if (sessionError || !session?.user?.id)
           throw new Error("Error de autenticación.");
 
-        // 🟢 DELEGACIÓN: Buscar el psicólogo asignado a esta secretaria
-        const { data: relacion, error: relError } = await supabase
-          .from("secretaria_psicologo")
+        const miUUID = session.user.id;
+
+        const { data: perfilData, error: perfilError } = await supabase
+          .from("perfil_secretaria")
           .select("psicologo_id")
-          .eq("secretaria_id", session.user.id)
+          .eq("id", miUUID)
           .maybeSingle();
 
-        if (relError || !relacion?.psicologo_id) {
+        if (perfilError || !perfilData?.psicologo_id) {
           throw new Error(
             "No tienes un psicólogo asignado. Contacta al administrador para vincular tu cuenta.",
           );
         }
-        const psicologoId = relacion.psicologo_id;
 
-        // Cargar pagos CONFIRMADOS
+        const idJefe = perfilData.psicologo_id;
+        setPsicologoId(idJefe);
+
         const { data: pagosDB, error: pagosError } = await supabase
-          .from("pagos")
-          .select(
-            "id, referencia_unica, monto_aplicado, fecha_actualizacion, usuario_id",
-          )
-          .eq("psicologo_id", psicologoId)
-          .eq("estado", "confirmado")
-          .order("fecha_actualizacion", { ascending: false });
+          .from("recaudacion_pacientes")
+          .select("id, cita_id, monto_pagado, creado_el")
+          .eq("psicologo_id", idJefe)
+          .eq("estado_pago", "confirmed")
+          .order("creado_el", { ascending: false });
 
         if (pagosError)
-          throw new Error("No se pudieron cargar los pagos confirmados.");
+          throw new Error(`Error cargando pagos: ${pagosError.message}`);
 
-        // Cargar facturas electrónicas existentes
+        // 🟢 CORRECCIÓN LINTER: Uso de la interfaz estricta
+        let citasInfo: CitaInfo[] = [];
+        if (pagosDB && pagosDB.length > 0) {
+          const idsCitas = pagosDB.map((p) => p.cita_id);
+          const { data: citasDB } = await supabase
+            .from("citas")
+            .select("id, nombre_paciente, paciente_nombre")
+            .in("id", idsCitas);
+          if (citasDB) citasInfo = citasDB as CitaInfo[];
+        }
+
         const { data: facturasDB, error: facturasError } = await supabase
           .from("facturas_electronicas")
           .select("*")
-          .eq("psicologo_id", psicologoId);
+          .eq("psicologo_id", idJefe);
 
         if (facturasError)
           throw new Error("No se pudo cargar el historial de facturación.");
 
         let opsEnriquecidas: FacturaOperacion[] = [];
+
         if (pagosDB && pagosDB.length > 0) {
-          opsEnriquecidas = await Promise.all(
-            pagosDB.map(async (pago) => {
-              let paciente_nombre = "Paciente Desconocido";
-              if (pago.usuario_id) {
-                const { data: usuario } = await supabase
-                  .from("roles_usuarios")
-                  .select("nombre, correo")
-                  .eq("id", pago.usuario_id)
-                  .maybeSingle();
-                paciente_nombre =
-                  usuario?.nombre || usuario?.correo || "Paciente Desconocido";
-              }
-              const facturaAsociada = facturasDB?.find(
-                (f) => f.pago_id === pago.id,
-              );
-              return {
-                pago_id: pago.id,
-                paciente_nombre,
-                referencia_interna: pago.referencia_unica,
-                monto: pago.monto_aplicado,
-                fecha_pago: pago.fecha_actualizacion,
-                factura_id: facturaAsociada?.id,
-                secuencial_tributario: facturaAsociada?.secuencial_tributario,
-                estado_sri: facturaAsociada?.estado_sri || "pendiente_emision",
-                xml_url: facturaAsociada?.xml_url,
-                ride_url: facturaAsociada?.ride_url,
-              };
-            }),
-          );
+          opsEnriquecidas = pagosDB.map((pago) => {
+            const citaAsociada = citasInfo.find((c) => c.id === pago.cita_id);
+            const paciente_nombre =
+              citaAsociada?.nombre_paciente ||
+              citaAsociada?.paciente_nombre ||
+              "Paciente Desconocido";
+            const facturaAsociada = facturasDB?.find(
+              (f) => f.pago_id === pago.id,
+            );
+
+            return {
+              pago_id: pago.id,
+              paciente_nombre,
+              monto: pago.monto_pagado,
+              fecha_pago: pago.creado_el,
+              factura_id: facturaAsociada?.id,
+              secuencial_tributario: facturaAsociada?.secuencial_tributario,
+              // 🟢 CORRECCIÓN LINTER: Casteo exacto al tipo definido
+              estado_sri:
+                (facturaAsociada?.estado_sri as EstadoSRI) ||
+                "pendiente_emision",
+              xml_url: facturaAsociada?.xml_url,
+              ride_url: facturaAsociada?.ride_url,
+            };
+          });
         }
         setOperaciones(opsEnriquecidas);
       } catch (err: unknown) {
@@ -122,10 +138,10 @@ export default function CentroFacturacionSecretaria() {
   );
 
   useEffect(() => {
-    const iniciarCarga = async () => {
+    const inicializar = async () => {
       await cargarOperaciones(false);
     };
-    iniciarCarga();
+    inicializar();
   }, [cargarOperaciones]);
 
   const emitirFactura = async (
@@ -134,7 +150,7 @@ export default function CentroFacturacionSecretaria() {
     monto: number,
   ) => {
     const confirmar = confirm(
-      `¿Estás seguro de emitir la factura electrónica para ${pacienteNombre} por el valor de $${monto}?`,
+      `¿Estás seguro de emitir la factura electrónica para ${pacienteNombre} por $${monto}?`,
     );
     if (!confirmar) return;
 
@@ -157,7 +173,7 @@ export default function CentroFacturacionSecretaria() {
       const resultado = await respuesta.json();
       if (!respuesta.ok)
         throw new Error(
-          resultado.error || "Fallo en la comunicación con el servidor",
+          resultado.error || "Fallo en la comunicación con el servidor SRI",
         );
 
       alert("Orden de facturación enviada al proveedor.");
@@ -217,26 +233,33 @@ export default function CentroFacturacionSecretaria() {
 
   if (cargando)
     return (
-      <div className="p-10 flex justify-center">
-        <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+      <div className="p-10 flex justify-center py-20">
+        <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
       </div>
     );
 
   return (
     <div className="p-6 md:p-10 w-full font-sans animate-in fade-in duration-500 max-w-7xl mx-auto pb-20">
+      {!psicologoId && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 shadow-sm">
+          🚨 Aviso: Tu cuenta de secretaria no ha sido asignada a ningún
+          psicólogo.
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 border-b border-slate-200 pb-8">
         <div>
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-2 tracking-tight">
             Centro de Facturación
           </h1>
           <p className="text-slate-500 font-medium text-lg max-w-2xl">
-            Gestiona y emite los comprobantes electrónicos tributarios en nombre
-            del especialista.
+            Gestiona y emite los comprobantes electrónicos tributarios (SRI) de
+            los pagos confirmados.
           </p>
         </div>
 
         <div className="flex gap-4 shrink-0 overflow-x-auto pb-2 md:pb-0">
-          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-center min-w-30">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center min-w-30 shadow-sm">
             <p className="text-3xl font-black text-amber-600">
               {
                 operaciones.filter((o) => o.estado_sri === "pendiente_emision")
@@ -291,7 +314,7 @@ export default function CentroFacturacionSecretaria() {
         </button>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-300px">
         {operacionesFiltradas.length === 0 ? (
           <div className="p-16 text-center">
             <h3 className="text-xl font-black text-slate-900 mb-2">
@@ -310,13 +333,10 @@ export default function CentroFacturacionSecretaria() {
                     Detalle del Servicio
                   </th>
                   <th className="py-4 px-6 text-xs font-black text-slate-400 uppercase tracking-wider">
-                    Referencia Pago
+                    Monto Depositado
                   </th>
                   <th className="py-4 px-6 text-xs font-black text-slate-400 uppercase tracking-wider">
-                    Secuencial / Estado
-                  </th>
-                  <th className="py-4 px-6 text-xs font-black text-slate-400 uppercase tracking-wider">
-                    Monto
+                    Estado SRI
                   </th>
                   <th className="py-4 px-6 text-xs font-black text-slate-400 uppercase tracking-wider text-right">
                     Acciones
@@ -338,10 +358,8 @@ export default function CentroFacturacionSecretaria() {
                         {new Date(op.fecha_pago).toLocaleDateString()}
                       </p>
                     </td>
-                    <td className="py-5 px-6">
-                      <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                        {op.referencia_interna}
-                      </span>
+                    <td className="py-5 px-6 font-black text-slate-900 text-lg">
+                      ${Number(op.monto).toFixed(2)}
                     </td>
                     <td className="py-5 px-6 space-y-1">
                       {getEstadoBadge(op.estado_sri)}
@@ -350,9 +368,6 @@ export default function CentroFacturacionSecretaria() {
                           {op.secuencial_tributario}
                         </p>
                       )}
-                    </td>
-                    <td className="py-5 px-6 font-black text-slate-900">
-                      ${Number(op.monto).toFixed(2)}
                     </td>
                     <td className="py-5 px-6 text-right space-x-2">
                       {op.estado_sri === "pendiente_emision" && (
@@ -368,17 +383,17 @@ export default function CentroFacturacionSecretaria() {
                           className="bg-purple-700 text-white hover:bg-purple-800 px-4 py-2 rounded-xl text-sm font-black transition-colors shadow-sm disabled:opacity-50"
                         >
                           {procesando === op.pago_id
-                            ? "Procesando..."
+                            ? "Enviando al SRI..."
                             : "Emitir factura"}
                         </button>
                       )}
                       {op.estado_sri === "autorizada" && (
                         <div className="flex justify-end gap-2">
                           <button className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-                            Ver factura
+                            Ver RIDE
                           </button>
                           <button className="bg-purple-50 border border-purple-100 text-purple-600 hover:bg-purple-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-                            Descargar XML
+                            XML
                           </button>
                         </div>
                       )}

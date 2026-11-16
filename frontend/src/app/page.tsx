@@ -3,18 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLanguage, LangType } from "../context/LanguageContext";
-import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-  style: ["normal", "italic"],
-});
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-});
+// 🟢 BYPASS TÁCTICO: Se ha eliminado la dependencia de 'next/font/google' que causaba errores en Turbopack.
+// Ahora usaremos clases nativas y veloces de Tailwind (font-sans y font-serif) para el diseño.
 
 const translations = {
   es: {
@@ -264,7 +255,7 @@ export default function LandingPage() {
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
-      className={`min-h-screen bg-slate-50 dark:bg-[#050505] text-slate-900 dark:text-white selection:bg-indigo-500/30 transition-colors duration-300 ${jakarta.className}`}
+      className="min-h-screen bg-slate-50 dark:bg-[#050505] text-slate-900 dark:text-white selection:bg-indigo-500/30 transition-colors duration-300 font-sans"
     >
       <header className="fixed top-0 w-full bg-white/70 dark:bg-[#050505]/70 backdrop-blur-2xl border-b border-slate-200/50 dark:border-white/5 z-50 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -273,15 +264,11 @@ export default function LandingPage() {
             className="flex items-center gap-3 group cursor-pointer"
           >
             <div className="w-10 h-10 bg-linear-to-br from-indigo-600 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 transition-all duration-300 group-hover:scale-105 group-hover:rotate-3">
-              <span
-                className={`text-white font-black text-xl ${playfair.className}`}
-              >
+              <span className="text-white font-black text-xl font-serif">
                 Ψ
               </span>
             </div>
-            <span
-              className={`font-black text-2xl tracking-tight text-slate-900 dark:text-white ${jakarta.className}`}
-            >
+            <span className="font-black text-2xl tracking-tight text-slate-900 dark:text-white font-sans">
               Clinesfera
             </span>
           </Link>
@@ -355,7 +342,6 @@ export default function LandingPage() {
               >
                 {t.auth.login}
               </Link>
-              {/* 🔴 BOTÓN DE REGISTRO PREMIUM Y LLAMATIVO EN EL HEADER */}
               <Link
                 href="/registro"
                 className="bg-linear-to-r from-indigo-600 via-purple-600 to-teal-500 text-white font-black py-2.5 px-6 rounded-full hover:scale-105 hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-300 text-sm tracking-wide ml-2"
@@ -419,7 +405,6 @@ export default function LandingPage() {
               ))}
             </div>
             <div className="flex flex-col gap-3">
-              {/* 🔴 BOTÓN DE REGISTRO PREMIUM EN MÓVIL */}
               <Link
                 href="/registro"
                 className="w-full bg-linear-to-r from-indigo-600 via-purple-600 to-teal-500 text-white text-center font-black py-4 rounded-xl text-lg shadow-lg shadow-purple-500/20"
@@ -444,8 +429,8 @@ export default function LandingPage() {
       </header>
 
       <section className="relative pt-40 pb-20 md:pt-48 md:pb-32 overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-indigo-500/20 dark:bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none"></div>
-        <div className="absolute top-1/4 left-1/4 w-100 h-100 bg-teal-400/20 dark:bg-teal-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-600px h-600px bg-indigo-500/20 dark:bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="absolute top-1/4 left-1/4 w-400px h-400px bg-teal-400/20 dark:bg-teal-500/20 rounded-full blur-[100px] pointer-events-none"></div>
 
         <div className="max-w-7xl mx-auto px-6 relative z-10 flex flex-col items-center text-center">
           <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 mb-10 backdrop-blur-md shadow-sm">
@@ -455,9 +440,7 @@ export default function LandingPage() {
             </span>
           </div>
 
-          <h1
-            className={`text-5xl md:text-7xl lg:text-[5.5rem] mb-10 tracking-tight leading-[1.1] max-w-5xl ${playfair.className}`}
-          >
+          <h1 className="text-5xl md:text-7xl lg:text-[5.5rem] mb-10 tracking-tight leading-[1.1] max-w-5xl font-serif">
             <span className="font-bold text-slate-900 dark:text-white block mb-2">
               {t.hero.title1}
             </span>
@@ -466,14 +449,11 @@ export default function LandingPage() {
             </span>
           </h1>
 
-          <p
-            className={`text-xl md:text-2xl text-slate-600 dark:text-slate-300/80 mb-12 max-w-4xl leading-relaxed font-light italic ${playfair.className}`}
-          >
+          <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300/80 mb-12 max-w-4xl leading-relaxed font-light italic font-serif">
             {t.hero.desc}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-5 w-full sm:w-auto">
-            {/* 🔴 BOTÓN PRINCIPAL DEL HERO DIRIGIDO AL REGISTRO */}
             <Link
               href="/registro"
               className="w-full sm:w-auto bg-linear-to-r from-indigo-600 via-purple-600 to-teal-500 text-white font-black py-4 px-10 rounded-full transition-all shadow-xl shadow-purple-500/20 hover:shadow-2xl hover:shadow-purple-500/40 hover:-translate-y-1 text-lg tracking-wide flex items-center justify-center gap-2"
@@ -506,9 +486,7 @@ export default function LandingPage() {
       <section id="soluciones" className="py-24 relative z-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16 md:mb-24">
-            <h2
-              className={`text-4xl md:text-5xl font-black mb-6 tracking-tight text-slate-900 dark:text-white ${playfair.className}`}
-            >
+            <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight text-slate-900 dark:text-white font-serif">
               {t.features.title}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed">
@@ -516,16 +494,14 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-80">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-300px">
             <div className="md:col-span-2 md:row-span-2 bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 flex flex-col justify-between group hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-colors overflow-hidden relative shadow-sm hover:shadow-xl">
               <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
               <div>
                 <span className="inline-block bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-[10px] font-black tracking-widest uppercase px-4 py-1.5 rounded-full mb-6">
                   {t.features.c1Tag}
                 </span>
-                <h3
-                  className={`text-4xl md:text-6xl font-black mb-6 tracking-tight leading-none text-slate-900 dark:text-white ${playfair.className}`}
-                >
+                <h3 className="text-4xl md:text-6xl font-black mb-6 tracking-tight leading-none text-slate-900 dark:text-white font-serif">
                   {t.features.c1Title}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 text-lg md:text-xl leading-relaxed max-w-lg mb-8 font-medium">
@@ -607,9 +583,7 @@ export default function LandingPage() {
                 <span className="inline-block bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[10px] font-black tracking-widest uppercase px-4 py-1.5 rounded-full mb-5">
                   {t.features.c2Tag}
                 </span>
-                <h3
-                  className={`text-3xl font-black mb-4 text-slate-900 dark:text-white ${playfair.className}`}
-                >
+                <h3 className="text-3xl font-black mb-4 text-slate-900 dark:text-white font-serif">
                   {t.features.c2Title}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
@@ -644,9 +618,7 @@ export default function LandingPage() {
                 <span className="inline-block bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-widest uppercase px-4 py-1.5 rounded-full mb-5">
                   {t.features.c3Tag}
                 </span>
-                <h3
-                  className={`text-3xl font-black mb-4 text-slate-900 dark:text-white ${playfair.className}`}
-                >
+                <h3 className="text-3xl font-black mb-4 text-slate-900 dark:text-white font-serif">
                   {t.features.c3Title}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 font-medium leading-relaxed">

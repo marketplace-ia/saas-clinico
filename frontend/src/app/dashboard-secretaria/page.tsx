@@ -1,59 +1,90 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../../../lib/supabase"; // Conexión oficial
 import { Users, Calendar, Plus, FileText, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 interface CitaManual {
-  id?: string;
-  paciente_correo?: string;
-  psicologo_correo?: string;
+  id: string;
+  paciente_nombre: string;
   fecha: string;
-  hora: string;
+  hora_inicio: string;
   motivo: string;
-  estado?: string;
+  estado: string;
 }
 
 export default function DashboardSecretariaResumen() {
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
+
+  const [psicologoId, setPsicologoId] = useState<string | null>(null); // El ID del jefe
   const [citasRecientes, setCitasRecientes] = useState<CitaManual[]>([]);
+  const [metricas, setMetricas] = useState({ pacientes: 0, citasHoy: 0 });
 
   const [formulario, setFormulario] = useState({
-    paciente_correo: "",
-    psicologo_correo: "",
+    paciente_nombre: "",
     fecha: "",
-    hora: "",
+    hora_inicio: "",
     motivo: "",
   });
 
   useEffect(() => {
-    const handleBotAction = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail?.action === "OPEN_MODAL_NUEVA_CITA") {
-        setMostrarModal(true);
+    const inicializarSecretaria = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const miUUID = session.user.id; // UUID de la secretaria logueada
+
+        // 1. 🟢 CONEXIÓN EXACTA A TU BASE DE DATOS: Buscamos al jefe en perfil_secretaria
+        const { data: perfilData, error: perfilError } = await supabase
+          .from("perfil_secretaria")
+          .select("psicologo_id")
+          .eq("id", miUUID)
+          .maybeSingle();
+
+        if (perfilError || !perfilData?.psicologo_id) {
+          console.error("Esta secretaria no tiene un psicólogo asignado.");
+          setCargando(false);
+          return;
+        }
+
+        const idJefe = perfilData.psicologo_id;
+        setPsicologoId(idJefe);
+
+        // 2. Traemos las Citas RECIENTES solo de ESE psicólogo
+        const { data: citasData } = await supabase
+          .from("citas")
+          .select("id, paciente_nombre, fecha, hora_inicio, motivo, estado")
+          .eq("psicologo_id", idJefe)
+          .order("fecha", { ascending: false })
+          .limit(5);
+
+        if (citasData) setCitasRecientes(citasData);
+
+        // 3. Calculamos métricas de ESE psicólogo (Citas del día)
+        const hoy = new Date().toISOString().split("T")[0];
+        const { count: citasHoyCount } = await supabase
+          .from("citas")
+          .select("id", { count: "exact", head: true })
+          .eq("psicologo_id", idJefe)
+          .eq("fecha", hoy);
+
+        setMetricas({
+          pacientes: 124, // Para conectarlo real, harías un count a la tabla de pacientes con eq("psicologo_id", idJefe)
+          citasHoy: citasHoyCount || 0,
+        });
+      } catch (error) {
+        console.error("Error iniciando portal de secretaría:", error);
+      } finally {
+        setCargando(false);
       }
     };
-    window.addEventListener("bot-action", handleBotAction);
-    return () => window.removeEventListener("bot-action", handleBotAction);
-  }, []);
 
-  useEffect(() => {
-    const cargarCitas = async () => {
-      const { data } = await supabase
-        .from("citas")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (data) setCitasRecientes(data as CitaManual[]);
-    };
-    cargarCitas();
+    inicializarSecretaria();
   }, []);
 
   const manejarCambio = (
@@ -64,18 +95,22 @@ export default function DashboardSecretariaResumen() {
 
   const agendarCitaManual = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!psicologoId)
+      return alert("Acceso denegado: No estás vinculada a ningún consultorio.");
+
     setCargando(true);
 
     const { data, error } = await supabase
       .from("citas")
       .insert([
         {
-          paciente_correo: formulario.paciente_correo,
-          psicologo_correo: formulario.psicologo_correo,
+          psicologo_id: psicologoId, // 🟢 La cita se agenda automáticamente a la agenda de su jefe
+          paciente_nombre: formulario.paciente_nombre,
           fecha: formulario.fecha,
-          hora: formulario.hora,
+          hora_inicio: formulario.hora_inicio,
           motivo: formulario.motivo,
           estado: "confirmada",
+          creado_por_secretaria: true,
         },
       ])
       .select();
@@ -83,13 +118,12 @@ export default function DashboardSecretariaResumen() {
     if (error) {
       alert("Hubo un error al agendar la cita.\nDetalle: " + error.message);
     } else if (data) {
-      alert("¡Cita agendada con éxito!");
+      alert("¡Cita agendada con éxito en el calendario del doctor!");
       setMostrarModal(false);
       setFormulario({
-        paciente_correo: "",
-        psicologo_correo: "",
+        paciente_nombre: "",
         fecha: "",
-        hora: "",
+        hora_inicio: "",
         motivo: "",
       });
       setCitasRecientes([data[0] as CitaManual, ...citasRecientes]);
@@ -97,21 +131,39 @@ export default function DashboardSecretariaResumen() {
     setCargando(false);
   };
 
+  if (cargando)
+    return (
+      <div className="p-10 flex justify-center text-purple-600 font-bold">
+        Cargando base de datos de la clínica...
+      </div>
+    );
+
   return (
     <div className="p-6 max-w-6xl mx-auto h-full overflow-y-auto">
+      {!psicologoId && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 shadow-sm">
+          🚨 Aviso del Sistema: Tu cuenta de secretaria aún no ha sido asignada
+          a ningún consultorio o psicólogo. No podrás agendar citas hasta que el
+          administrador te asigne uno.
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Control General</h1>
+          <h1 className="text-3xl font-bold text-slate-900">
+            Recepción General
+          </h1>
           <p className="text-slate-500 mt-1">
-            Panel administrativo y de recepción.
+            Panel administrativo de citas y pagos de tu clínica.
           </p>
         </div>
         <button
           onClick={() => setMostrarModal(true)}
-          className="bg-purple-700 hover:bg-purple-800 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
+          disabled={!psicologoId}
+          className="bg-purple-700 hover:bg-purple-800 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5" />
-          Agendar Nueva Cita
+          Agendar Rápido
         </button>
       </div>
 
@@ -122,7 +174,9 @@ export default function DashboardSecretariaResumen() {
           </div>
           <div>
             <p className="text-sm text-slate-500 font-medium">Pacientes</p>
-            <p className="text-2xl font-bold text-slate-900">124</p>
+            <p className="text-2xl font-bold text-slate-900">
+              {metricas.pacientes}
+            </p>
           </div>
         </div>
 
@@ -132,7 +186,9 @@ export default function DashboardSecretariaResumen() {
           </div>
           <div>
             <p className="text-sm text-slate-500 font-medium">Citas Hoy</p>
-            <p className="text-2xl font-bold text-slate-900">8</p>
+            <p className="text-2xl font-bold text-slate-900">
+              {metricas.citasHoy}
+            </p>
           </div>
         </div>
 
@@ -199,28 +255,15 @@ export default function DashboardSecretariaResumen() {
               className="p-6 space-y-4 bg-slate-50"
             >
               <div>
-                <label className="block text-sm text-slate-600 mb-1">
-                  Correo del Paciente
+                <label className="block text-sm text-slate-600 mb-1 font-bold">
+                  Nombre del Paciente
                 </label>
                 <input
-                  type="email"
-                  name="paciente_correo"
+                  type="text"
+                  name="paciente_nombre"
                   required
-                  value={formulario.paciente_correo}
-                  onChange={manejarCambio}
-                  className="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-700 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-slate-600 mb-1">
-                  Correo del Psicólogo
-                </label>
-                <input
-                  type="email"
-                  name="psicologo_correo"
-                  required
-                  value={formulario.psicologo_correo}
+                  placeholder="Ej. Juan Pérez"
+                  value={formulario.paciente_nombre}
                   onChange={manejarCambio}
                   className="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-700 bg-white"
                 />
@@ -228,7 +271,7 @@ export default function DashboardSecretariaResumen() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-600 mb-1">
+                  <label className="block text-sm text-slate-600 mb-1 font-bold">
                     Fecha
                   </label>
                   <input
@@ -241,14 +284,14 @@ export default function DashboardSecretariaResumen() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-600 mb-1">
+                  <label className="block text-sm text-slate-600 mb-1 font-bold">
                     Hora
                   </label>
                   <input
                     type="time"
-                    name="hora"
+                    name="hora_inicio"
                     required
-                    value={formulario.hora}
+                    value={formulario.hora_inicio}
                     onChange={manejarCambio}
                     className="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 outline-none text-slate-700 bg-white"
                   />
@@ -256,12 +299,13 @@ export default function DashboardSecretariaResumen() {
               </div>
 
               <div>
-                <label className="block text-sm text-slate-600 mb-1">
+                <label className="block text-sm text-slate-600 mb-1 font-bold">
                   Motivo / Notas
                 </label>
                 <textarea
                   name="motivo"
                   required
+                  placeholder="Primera sesión, ansiedad..."
                   value={formulario.motivo}
                   onChange={manejarCambio}
                   rows={2}
@@ -273,16 +317,16 @@ export default function DashboardSecretariaResumen() {
                 <button
                   type="button"
                   onClick={() => setMostrarModal(false)}
-                  className="text-slate-500 hover:text-slate-700 font-medium px-4 py-2"
+                  className="text-slate-500 hover:text-slate-700 font-bold px-4 py-2"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={cargando}
-                  className="bg-purple-800 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-purple-900 transition-colors disabled:opacity-70"
+                  className="bg-purple-800 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-purple-900 transition-colors disabled:opacity-70"
                 >
-                  {cargando ? "Guardando..." : "Guardar Cita"}
+                  {cargando ? "Agendando..." : "Confirmar Cita"}
                 </button>
               </div>
             </form>

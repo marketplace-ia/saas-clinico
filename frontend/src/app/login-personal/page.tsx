@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage, LangType } from "../../context/LanguageContext";
 
@@ -16,6 +15,8 @@ interface AdminAuthTranslation {
   error: string;
   or: string;
   googleBtn: string;
+  forgot: string;
+  patientError: string;
 }
 
 const translations: Record<LangType, AdminAuthTranslation> = {
@@ -29,6 +30,9 @@ const translations: Record<LangType, AdminAuthTranslation> = {
     error: "Error al iniciar sesión.",
     or: "O ingresa con",
     googleBtn: "Continuar con Google",
+    forgot: "¿Olvidaste tu contraseña?",
+    patientError:
+      "Acceso denegado. Este portal es exclusivo para personal clínico.",
   },
   en: {
     title: "Administrative Access",
@@ -40,6 +44,8 @@ const translations: Record<LangType, AdminAuthTranslation> = {
     error: "Error logging in.",
     or: "Or log in with",
     googleBtn: "Continue with Google",
+    forgot: "Forgot your password?",
+    patientError: "Access denied. This portal is for clinical staff only.",
   },
   zh: {
     title: "管理访问",
@@ -51,6 +57,8 @@ const translations: Record<LangType, AdminAuthTranslation> = {
     error: "登录时出错。",
     or: "或使用以下方式登录",
     googleBtn: "使用 Google 继续",
+    forgot: "忘记密码？",
+    patientError: "拒绝访问。此门户仅供临床人员使用。",
   },
   hi: {
     title: "प्रशासनिक पहुँच",
@@ -62,6 +70,8 @@ const translations: Record<LangType, AdminAuthTranslation> = {
     error: "लॉग इन करने में त्रुटि।",
     or: "या इसके साथ लॉग इन करें",
     googleBtn: "Google के साथ जारी रखें",
+    forgot: "क्या आप अपना पासवर्ड भूल गए?",
+    patientError: "प्रवेश निषेध। यह पोर्टल केवल नैदानिक कर्मचारियों के लिए है।",
   },
   fr: {
     title: "Accès Administratif",
@@ -73,6 +83,8 @@ const translations: Record<LangType, AdminAuthTranslation> = {
     error: "Erreur de connexion.",
     or: "Ou connectez-vous avec",
     googleBtn: "Continuer avec Google",
+    forgot: "Mot de passe oublié ?",
+    patientError: "Accès refusé. Ce portail est réservé au personnel clinique.",
   },
   ar: {
     title: "الوصول الإداري",
@@ -84,6 +96,8 @@ const translations: Record<LangType, AdminAuthTranslation> = {
     error: "خطأ في تسجيل الدخول.",
     or: "أو سجل دخولك باستخدام",
     googleBtn: "المتابعة باستخدام Google",
+    forgot: "هل نسيت كلمة المرور؟",
+    patientError: "تم الرفض. هذه البوابة مخصصة للموظفين الطبيين فقط.",
   },
 };
 
@@ -92,22 +106,62 @@ export default function LoginPersonalPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
-  const router = useRouter();
 
   const { lang, isRtl } = useLanguage();
   const t = translations[lang];
 
-  // RADAR INTELIGENTE: Espera a Google y luego te teletransporta
   useEffect(() => {
+    const enrutarPersonal = async (session: { user?: { email?: string } }) => {
+      if (!session?.user?.email) return;
+      const userEmail = session.user.email;
+
+      setCargando(true);
+
+      try {
+        const { data } = await supabase
+          .from("roles_usuarios")
+          .select("rol")
+          .eq("correo", userEmail)
+          .maybeSingle();
+
+        if (
+          !data ||
+          !data.rol ||
+          (data.rol !== "psicologo" && data.rol !== "secretaria")
+        ) {
+          await supabase.auth.signOut();
+          setError(t.patientError);
+          setCargando(false);
+          return;
+        }
+
+        if (data.rol === "psicologo") {
+          window.location.href = "/dashboard-psicologo";
+        } else if (data.rol === "secretaria") {
+          window.location.href = "/dashboard-secretaria";
+        }
+      } catch (e) {
+        console.error("Error validando personal:", e);
+        await supabase.auth.signOut();
+        setError(t.error);
+        setCargando(false);
+      }
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) enrutarPersonal(session);
+    });
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        router.push("/dashboard-psicologo");
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        enrutarPersonal(session);
       }
     });
+
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [t.patientError, t.error]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +173,6 @@ export default function LoginPersonalPage() {
         password,
       });
       if (signInError) throw signInError;
-      // No necesitamos router.push aquí porque el radar lo detectará
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
       else setError(t.error);
@@ -132,7 +185,6 @@ export default function LoginPersonalPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          // LA CORRECCIÓN: Volvemos a esta misma página para que el Radar haga el salto seguro
           redirectTo: `${window.location.origin}/login-personal`,
         },
       });
@@ -201,13 +253,22 @@ export default function LoginPersonalPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none block w-full px-4 py-3 bg-slate-50 dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-                placeholder="doctor@Clinesfera.com"
+                placeholder="doctor@clinesfera.com"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-gray-300 mb-2">
-                {t.pass}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-bold text-slate-700 dark:text-gray-300">
+                  {t.pass}
+                </label>
+                <Link
+                  href="/recuperar"
+                  className="text-sm font-bold text-indigo-600 dark:text-teal-400 hover:text-indigo-500 transition-colors"
+                >
+                  {t.forgot}
+                </Link>
+              </div>
               <input
                 type="password"
                 required
@@ -217,6 +278,7 @@ export default function LoginPersonalPage() {
                 placeholder="••••••••"
               />
             </div>
+
             <div>
               <button
                 type="submit"

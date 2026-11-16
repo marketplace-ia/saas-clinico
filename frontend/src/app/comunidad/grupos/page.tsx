@@ -1,15 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "../../../../lib/supabase"; // 🟢 BD Conectada
 
-// 🟢 CREAMOS EL TIPO ESTRICTO PARA EVITAR EL 'any'
 type FiltroGrupo = "Todos" | "Clínica" | "Académico" | "Networking";
+
+interface Grupo {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  categoria: string;
+  miembros: number;
+  privacidad: "Público" | "Privado";
+  icono: string;
+  color_badge: string;
+  color_banner: string;
+}
 
 export default function GruposTematicosPage() {
   const [filtro, setFiltro] = useState<FiltroGrupo>("Todos");
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorBD, setErrorBD] = useState<string | null>(null);
 
-  // Arreglo tipado para los botones
   const opcionesFiltros: FiltroGrupo[] = [
     "Todos",
     "Clínica",
@@ -17,64 +31,43 @@ export default function GruposTematicosPage() {
     "Networking",
   ];
 
-  // MOCK: Base de datos de Grupos Temáticos (Punto 11)
-  const [grupos] = useState([
-    {
-      id: "grp-1",
-      nombre: "Instituto de Terapia Cognitivo Conductual",
-      descripcion:
-        "Discusión de casos, técnicas de tercera generación y material exclusivo sobre TCC.",
-      categoria: "Clínica",
-      miembros: 342,
-      privacidad: "Privado",
-      icono: "🧠",
-      color: "bg-indigo-50 text-indigo-700 border-indigo-100",
-      banner: "from-indigo-500 to-blue-600",
-    },
-    {
-      id: "grp-2",
-      nombre: "Seminario de Psicoanálisis Lacaniano",
-      descripcion:
-        "Lectura conjunta de los Escritos y seminarios. Exclusivo para profesionales y estudiantes avanzados.",
-      categoria: "Clínica",
-      miembros: 128,
-      privacidad: "Público",
-      icono: "🛋️",
-      color: "bg-purple-50 text-purple-700 border-purple-100",
-      banner: "from-purple-500 to-fuchsia-600",
-    },
-    {
-      id: "grp-3",
-      nombre: "Red de Estudiantes de Psicología (Ecuador)",
-      descripcion:
-        "Apoyo con tesis, prácticas pre-profesionales, intercambio de libros y consejos académicos.",
-      categoria: "Académico",
-      miembros: 856,
-      privacidad: "Público",
-      icono: "📚",
-      color: "bg-emerald-50 text-emerald-700 border-emerald-100",
-      banner: "from-emerald-400 to-teal-500",
-    },
-    {
-      id: "grp-4",
-      nombre: "Intervisión y Casos Difíciles",
-      descripcion:
-        "Espacio altamente moderado para supervisión grupal de casos clínicos. Requiere verificación profesional.",
-      categoria: "Networking",
-      miembros: 54,
-      privacidad: "Privado",
-      icono: "🛡️",
-      color: "bg-rose-50 text-rose-700 border-rose-100",
-      banner: "from-rose-500 to-red-600",
-    },
-  ]);
+  useEffect(() => {
+    let montado = true;
+
+    const cargarGrupos = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("comunidad_grupos")
+          .select("*")
+          .order("miembros", { ascending: false });
+
+        if (error) throw error;
+
+        if (montado && data) {
+          setGrupos(data as Grupo[]);
+          setErrorBD(null);
+        }
+      } catch (error) {
+        if (montado) {
+          console.error("Error BD Grupos:", error);
+          setErrorBD("Ocurrió un error cargando los grupos de la comunidad.");
+        }
+      } finally {
+        if (montado) setCargando(false);
+      }
+    };
+
+    cargarGrupos();
+    return () => {
+      montado = false;
+    };
+  }, []);
 
   const gruposFiltrados =
     filtro === "Todos" ? grupos : grupos.filter((g) => g.categoria === filtro);
 
   return (
     <div className="w-full animate-in fade-in duration-700 slide-in-from-bottom-4 pb-12">
-      {/* 1. HERO SECTION PREMIUM */}
       <div className="bg-slate-900 rounded-4xl p-10 md:p-14 text-white relative overflow-hidden shadow-xl mb-10 flex flex-col md:flex-row justify-between items-center gap-8">
         <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-500/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/3"></div>
@@ -95,135 +88,119 @@ export default function GruposTematicosPage() {
             colegas.
           </p>
         </div>
-
-        <div className="relative z-10 shrink-0 w-full md:w-auto">
-          <button className="w-full md:w-auto bg-white text-slate-900 hover:bg-slate-50 font-black py-4 px-8 rounded-2xl transition-all shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2">
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Crear un Grupo
-          </button>
-        </div>
       </div>
 
-      {/* 2. BARRA DE FILTROS */}
       <div className="flex overflow-x-auto hide-scrollbar gap-2 mb-8 pb-2">
         {opcionesFiltros.map((f) => (
           <button
             key={f}
             onClick={() => setFiltro(f)}
-            className={`px-6 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${
-              filtro === f
-                ? "bg-slate-900 text-white border-slate-900 shadow-md"
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-            }`}
+            className={`px-6 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${filtro === f ? "bg-slate-900 text-white border-slate-900 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
           >
             {f}
           </button>
         ))}
       </div>
 
-      {/* 3. CUADRÍCULA DE GRUPOS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {gruposFiltrados.map((grupo) => (
-          <div
-            key={grupo.id}
-            className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group cursor-pointer"
-          >
-            {/* Banner Superior Decorativo */}
+      {errorBD && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 text-sm">
+          🚨 {errorBD}
+        </div>
+      )}
+
+      {cargando ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+          <p className="text-slate-400 font-bold text-sm tracking-widest uppercase animate-pulse">
+            Cargando grupos...
+          </p>
+        </div>
+      ) : gruposFiltrados.length === 0 ? (
+        <div className="bg-white p-12 text-center rounded-3xl border border-slate-100 shadow-sm mt-6">
+          <h3 className="text-xl font-black text-slate-900 mb-2">
+            No se encontraron grupos
+          </h3>
+          <p className="text-slate-500">
+            Aún no hay grupos disponibles en esta categoría.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {gruposFiltrados.map((grupo) => (
             <div
-              className={`h-20 w-full bg-linear-to-r ${grupo.banner} relative`}
+              key={grupo.id}
+              className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group cursor-pointer"
             >
-              <div className="absolute -bottom-8 left-6 w-16 h-16 bg-white rounded-2xl shadow-md border-4 border-white flex items-center justify-center text-2xl">
-                {grupo.icono}
-              </div>
-              <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md rounded-full px-3 py-1 flex items-center gap-1.5 text-white text-xs font-bold">
-                {grupo.privacidad === "Privado" ? (
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                )}
-                {grupo.privacidad}
-              </div>
-            </div>
-
-            {/* Contenido */}
-            <div className="p-6 pt-10 flex-1 flex flex-col">
-              <div className="flex items-start justify-between gap-4 mb-2">
-                <h2 className="text-xl font-black text-slate-900 leading-tight group-hover:text-indigo-600 transition-colors">
-                  {grupo.nombre}
-                </h2>
-              </div>
-
-              <span
-                className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border w-max mb-3 ${grupo.color}`}
+              <div
+                className={`h-20 w-full bg-linear-to-r ${grupo.color_banner} relative`}
               >
-                {grupo.categoria}
-              </span>
-
-              <p className="text-slate-500 text-sm font-medium mb-6 line-clamp-2">
-                {grupo.descripcion}
-              </p>
-
-              <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="w-7 h-7 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-500"
-                      >
-                        U
-                      </div>
-                    ))}
-                  </div>
-                  <span className="text-xs font-bold text-slate-400 ml-1">
-                    +{grupo.miembros}
-                  </span>
+                <div className="absolute -bottom-8 left-6 w-16 h-16 bg-white rounded-2xl shadow-md border-4 border-white flex items-center justify-center text-2xl">
+                  {grupo.icono}
                 </div>
+                <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md rounded-full px-3 py-1 flex items-center gap-1.5 text-white text-xs font-bold">
+                  {grupo.privacidad === "Privado" ? (
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  )}
+                  {grupo.privacidad}
+                </div>
+              </div>
 
-                <button className="bg-slate-900 text-white hover:bg-indigo-600 font-bold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
-                  {grupo.privacidad === "Privado"
-                    ? "Solicitar Acceso"
-                    : "Unirme"}
-                </button>
+              <div className="p-6 pt-10 flex-1 flex flex-col">
+                <div className="flex items-start justify-between gap-4 mb-2">
+                  <h2 className="text-xl font-black text-slate-900 leading-tight group-hover:text-indigo-600 transition-colors">
+                    {grupo.nombre}
+                  </h2>
+                </div>
+                <span
+                  className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border w-max mb-3 ${grupo.color_badge}`}
+                >
+                  {grupo.categoria}
+                </span>
+                <p className="text-slate-500 text-sm font-medium mb-6 line-clamp-2">
+                  {grupo.descripcion}
+                </p>
+
+                <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-400 ml-1">
+                      {grupo.miembros} Miembros
+                    </span>
+                  </div>
+                  <button className="bg-slate-900 text-white hover:bg-indigo-600 font-bold px-5 py-2 rounded-xl text-sm transition-colors shadow-sm">
+                    {grupo.privacidad === "Privado"
+                      ? "Solicitar Acceso"
+                      : "Unirme"}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Cita {
   id: string;
@@ -12,20 +13,44 @@ interface Cita {
   modalidad: string;
 }
 
+interface InfoSuscripcion {
+  estado: string;
+  plan_nombre: string;
+}
+
+type SubResponse = {
+  estado: string;
+  plan_id: string;
+  planes: { nombre: string } | { nombre: string }[] | null;
+};
+
 export default function DashboardPsicologo() {
+  const router = useRouter();
+
   const [citasHoy, setCitasHoy] = useState<Cita[]>([]);
   const [totalPacientes, setTotalPacientes] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [nombre, setNombre] = useState("Doc");
   const [mostrarModalCita, setMostrarModalCita] = useState(false);
   const [guardandoCita, setGuardandoCita] = useState(false);
+  const [esDemo, setEsDemo] = useState(false); // 🟢 Control de Sandbox
+
+  const [infoSuscripcion, setInfoSuscripcion] = useState<InfoSuscripcion>({
+    estado: "trialing",
+    plan_nombre: "Gratuito",
+  });
+  const [mostrarPaywall, setMostrarPaywall] = useState(false);
+
   const [formulario, setFormulario] = useState({
     paciente: "",
     fecha: "",
     hora: "",
+    modalidad: "Presencial",
   });
 
   useEffect(() => {
+    let montado = true;
+
     const cargarDatosDashboard = async () => {
       try {
         const {
@@ -33,8 +58,81 @@ export default function DashboardPsicologo() {
         } = await supabase.auth.getSession();
         if (!session) return;
 
-        const emailNombre = session.user.email?.split("@")[0] || "Doc";
-        setNombre(emailNombre.charAt(0).toUpperCase() + emailNombre.slice(1));
+        // ==========================================
+        // 🟢 MODO SANDBOX: SI ES EL USUARIO DEMO
+        // ==========================================
+        const correo = session.user.email;
+        if (correo === "demo@clinesfera.com") {
+          if (montado) {
+            setEsDemo(true);
+            setNombre("Invitado Especial");
+            // Le damos el Plan Élite Falso para que el dashboard no lo bloquee
+            setInfoSuscripcion({
+              estado: "active",
+              plan_nombre: "Élite (Demo)",
+            });
+
+            // Le inyectamos datos falsos bonitos para que el dashboard no se vea vacío
+            setCitasHoy([
+              {
+                id: "demo-1",
+                nombre_paciente: "Paciente de Prueba",
+                hora_inicio: "10:00",
+                hora_fin: "11:00",
+                modalidad: "Online",
+              },
+              {
+                id: "demo-2",
+                nombre_paciente: "María (Simulación)",
+                hora_inicio: "15:30",
+                hora_fin: "16:30",
+                modalidad: "Presencial",
+              },
+            ]);
+            setTotalPacientes(12);
+            setCargando(false);
+          }
+          return; // Rompemos aquí para que no busque datos reales en Supabase
+        }
+
+        // ==========================================
+        // FLUJO REAL (Para psicólogos de verdad)
+        // ==========================================
+        if (montado) {
+          const emailNombre = correo?.split("@")[0] || "Doc";
+          setNombre(emailNombre.charAt(0).toUpperCase() + emailNombre.slice(1));
+        }
+
+        const { data: tu } = await supabase
+          .from("tenant_users")
+          .select("tenant_id")
+          .eq("usuario_id", session.user.id)
+          .single();
+
+        if (tu && montado) {
+          const { data: sub } = await supabase
+            .from("tenant_subscriptions")
+            .select(`estado, plan_id, planes ( nombre )`)
+            .eq("tenant_id", tu.tenant_id)
+            .single();
+
+          if (sub) {
+            const suscripcionData = sub as unknown as SubResponse;
+            const dataPlanes = suscripcionData.planes;
+            let nombreDelPlan = "Gratuito";
+
+            if (sub.estado === "active" || sub.estado === "confirmado") {
+              if (Array.isArray(dataPlanes))
+                nombreDelPlan = dataPlanes[0]?.nombre || "Esencial";
+              else if (dataPlanes && typeof dataPlanes === "object")
+                nombreDelPlan = dataPlanes.nombre || "Esencial";
+            }
+            setInfoSuscripcion({
+              estado: sub.estado,
+              plan_nombre: nombreDelPlan,
+            });
+          }
+        }
 
         const hoy = new Date().toLocaleDateString("en-CA", {
           timeZone: "America/Guayaquil",
@@ -47,37 +145,69 @@ export default function DashboardPsicologo() {
           .eq("fecha", hoy)
           .order("hora_inicio", { ascending: true });
 
-        if (citasData) setCitasHoy(citasData);
+        if (montado && citasData) setCitasHoy(citasData);
 
         const { count } = await supabase
           .from("historias_clinicas")
           .select("*", { count: "exact", head: true })
           .eq("psicologo_id", session.user.id);
 
-        if (count !== null) setTotalPacientes(count);
+        if (montado && count !== null) setTotalPacientes(count);
       } catch (error) {
         console.error("Error cargando dashboard:", error);
       } finally {
-        setCargando(false);
+        if (montado) setCargando(false);
       }
     };
 
     cargarDatosDashboard();
+
+    return () => {
+      montado = false;
+    };
   }, []);
 
-  useEffect(() => {
-    const handleNuevaCita = () => setMostrarModalCita(true);
-    window.addEventListener("OPEN_MODAL_NUEVA_CITA", handleNuevaCita);
-    return () =>
-      window.removeEventListener("OPEN_MODAL_NUEVA_CITA", handleNuevaCita);
-  }, []);
-
-  // 🟢 FUNCIÓN ACTUALIZADA Y BLINDADA
   const guardarNuevaCita = async (e: React.FormEvent) => {
     e.preventDefault();
-    setGuardandoCita(true);
 
+    const planFormateado = infoSuscripcion.plan_nombre.toLowerCase();
+    const planBajo =
+      planFormateado === "gratuito" || planFormateado === "esencial";
+
+    if (planBajo && formulario.modalidad === "Online" && !esDemo) {
+      setMostrarPaywall(true);
+      return;
+    }
+
+    setGuardandoCita(true);
     try {
+      // 🟢 MODO SANDBOX: GUARDADO EN MEMORIA (No toca Supabase)
+      if (esDemo) {
+        const nuevaCitaFalsa: Cita = {
+          id: `fake-${Date.now()}`,
+          nombre_paciente: formulario.paciente,
+          hora_inicio: formulario.hora,
+          hora_fin: "00:00",
+          modalidad: formulario.modalidad,
+        };
+
+        setCitasHoy((prev) =>
+          [...prev, nuevaCitaFalsa].sort((a, b) =>
+            a.hora_inicio.localeCompare(b.hora_inicio),
+          ),
+        );
+        setFormulario({
+          paciente: "",
+          fecha: "",
+          hora: "",
+          modalidad: "Presencial",
+        });
+        setMostrarModalCita(false);
+        setGuardandoCita(false);
+        return;
+      }
+
+      // FLUJO REAL
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -88,18 +218,12 @@ export default function DashboardPsicologo() {
         .select("tenant_id")
         .eq("usuario_id", session.user.id)
         .single();
+      if (!tu) throw new Error("No tienes una clínica asignada.");
 
-      if (!tu)
-        throw new Error(
-          "No tienes una clínica asignada para guardar esta cita.",
-        );
-
-      // Calcular hora de fin aproximada (+1 hora)
       const horaInicioObj = new Date(`2000-01-01T${formulario.hora}`);
       horaInicioObj.setHours(horaInicioObj.getHours() + 1);
       const hora_fin = horaInicioObj.toTimeString().split(" ")[0];
 
-      // 🟢 CORRECCIÓN: Usar estado "confirmed"
       const { error } = await supabase.from("citas").insert({
         tenant_id: tu.tenant_id,
         psicologo_id: session.user.id,
@@ -107,25 +231,22 @@ export default function DashboardPsicologo() {
         fecha: formulario.fecha,
         hora_inicio: formulario.hora,
         hora_fin: hora_fin,
-        modalidad: "Online",
+        modalidad: formulario.modalidad,
         estado: "confirmed",
       });
 
       if (error) throw error;
 
-      setFormulario({ paciente: "", fecha: "", hora: "" });
+      setFormulario({
+        paciente: "",
+        fecha: "",
+        hora: "",
+        modalidad: "Presencial",
+      });
       setMostrarModalCita(false);
       window.location.reload();
-    } catch (error: unknown) {
-      console.error("Detalle completo del error:", error);
-      let errorReal = "Error desconocido";
-      if (error instanceof Error) {
-        errorReal = error.message;
-      } else if (typeof error === "object" && error !== null) {
-        const errObj = error as { message?: string; details?: string };
-        errorReal = errObj.message || errObj.details || JSON.stringify(error);
-      }
-      alert(`⚠️ Error al agendar: \n${errorReal}`);
+    } catch {
+      alert(`⚠️ Error al agendar.`);
     } finally {
       setGuardandoCita(false);
     }
@@ -173,13 +294,14 @@ export default function DashboardPsicologo() {
           <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
-                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner">
+        <>
+          {/* 🟢 BANNER SANDBOX EXCLUSIVO */}
+          {esDemo ? (
+            <div className="bg-linear-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-3xl p-6 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+              <div className="flex items-start md:items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner animate-pulse">
                   <svg
-                    className="w-8 h-8"
+                    className="w-6 h-6"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -188,84 +310,76 @@ export default function DashboardPsicologo() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
                     />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Citas para Hoy
+                  <h2 className="text-lg font-black text-indigo-900 mb-1">
+                    Modo de Demostración Activo 🚀
+                  </h2>
+                  <p className="text-indigo-700 font-medium text-sm">
+                    Estás probando la plataforma con funciones Élite. Puedes
+                    crear, editar y jugar.{" "}
+                    <strong className="text-purple-700">
+                      Ningún cambio se guardará en la base de datos real.
+                    </strong>
                   </p>
-                  <h3 className="text-4xl font-black text-slate-900">
-                    {citasHoy.length}
-                  </h3>
                 </div>
               </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
-                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
-                  <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Pacientes Activos
-                  </p>
-                  <h3 className="text-4xl font-black text-slate-900">
-                    {totalPacientes}
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-linear-to-r from-indigo-600 to-violet-600 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden">
-              <div className="relative z-10 md:w-2/3">
-                <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-md mb-4 inline-block">
-                  Novedad
-                </span>
-                <h2 className="text-2xl font-black mb-2">
-                  ¡Bienvenido a Clinesfera!
-                </h2>
-                <p className="text-indigo-100 font-medium mb-6">
-                  El módulo de Historias Clínicas y la sincronización con Google
-                  Calendar ya están 100% operativos. Tu consultorio digital está
-                  listo para escalar.
-                </p>
-              </div>
-              <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
-              <div className="absolute top-10 -right-5 w-32 h-32 bg-indigo-400 opacity-20 rounded-full blur-2xl"></div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:h-150 flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black text-slate-900">
-                Agenda de Hoy
-              </h3>
-              <Link
-                href="/dashboard-psicologo/agenda"
-                className="text-indigo-600 font-bold text-sm hover:underline"
+              <button
+                onClick={() => {
+                  supabase.auth.signOut();
+                  router.push("/registro");
+                }}
+                className="shrink-0 bg-indigo-900 hover:bg-black text-white font-bold py-3 px-6 rounded-xl shadow-md transition-colors text-sm flex items-center gap-2"
               >
-                Ver todo
+                Terminar Prueba y Registrarme
+              </button>
+            </div>
+          ) : infoSuscripcion.estado === "trialing" ||
+            infoSuscripcion.estado === "pendiente" ? (
+            <div className="bg-linear-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-6 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+              <div className="flex items-start md:items-center gap-4">
+                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-amber-900 mb-1">
+                    Plan Gratuito (Prueba de 7 días)
+                  </h2>
+                  <p className="text-amber-700 font-medium text-sm">
+                    Estás experimentando Clinesfera sin límites. Al finalizar tu
+                    prueba, el acceso a tu agenda se bloqueará automáticamente.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/dashboard-psicologo/suscripcion"
+                className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-colors text-sm flex items-center gap-2"
+              >
+                Suscribirme Ahora
               </Link>
             </div>
-
-            {citasHoy.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-100 rounded-2xl">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-3">
+          ) : infoSuscripcion.estado === "active" ||
+            infoSuscripcion.estado === "confirmado" ? (
+            <div className="bg-linear-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-6 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+              <div className="flex items-start md:items-center gap-4">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
                   <svg
-                    className="w-8 h-8 text-slate-300"
+                    className="w-6 h-6"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -274,55 +388,155 @@ export default function DashboardPsicologo() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M5 13l4 4L19 7"
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
                 </div>
-                <p className="text-slate-500 font-medium">
-                  Día despejado. No tienes citas programadas para hoy.
-                </p>
+                <div>
+                  <h2 className="text-lg font-black text-emerald-900 mb-1">
+                    Suscripción {infoSuscripcion.plan_nombre} Activa 🚀
+                  </h2>
+                  <p className="text-emerald-700 font-medium text-sm">
+                    {infoSuscripcion.plan_nombre.toLowerCase() === "esencial" ||
+                    infoSuscripcion.plan_nombre.toLowerCase() === "gratuito"
+                      ? "Tu consultorio digital está asegurado. Administra tus turnos e historias clínicas sin límites."
+                      : "Tienes acceso VIP a Telemedicina, pacientes ilimitados y funciones premium."}
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                {citasHoy.map((cita) => (
-                  <div
-                    key={cita.id}
-                    className="p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:border-indigo-200 hover:bg-indigo-50/50 transition-colors flex gap-4"
-                  >
-                    {/* 🟢 CORRECCIÓN TAILWIND APLICADA AQUÍ */}
-                    <div className="flex flex-col items-center justify-center min-w-15 border-r border-slate-200 pr-4">
-                      <span className="text-lg font-black text-slate-900">
-                        {cita.hora_inicio.slice(0, 5)}
-                      </span>
-                      <span className="text-xs font-bold text-slate-400 uppercase">
-                        Inicio
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-lg mb-1">
-                        {cita.nombre_paciente}
-                      </h4>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${cita.modalidad === "Online" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}
-                      >
-                        {cita.modalidad}
-                      </span>
-                    </div>
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner">
+                    <svg
+                      className="w-8 h-8"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
                   </div>
-                ))}
+                  <div>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Citas para Hoy
+                    </p>
+                    <h3 className="text-4xl font-black text-slate-900">
+                      {citasHoy.length}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
+                    <svg
+                      className="w-8 h-8"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Pacientes Activos
+                    </p>
+                    <h3 className="text-4xl font-black text-slate-900">
+                      {totalPacientes}
+                    </h3>
+                  </div>
+                </div>
               </div>
-            )}
+
+              <div className="bg-linear-to-r from-indigo-600 to-violet-600 rounded-3xl p-8 text-white shadow-lg relative overflow-hidden">
+                <div className="relative z-10 md:w-2/3">
+                  <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-md mb-4 inline-block">
+                    Novedad
+                  </span>
+                  <h2 className="text-2xl font-black mb-2">
+                    ¡Bienvenido a Clinesfera!
+                  </h2>
+                  <p className="text-indigo-100 font-medium mb-6">
+                    El módulo de Historias Clínicas y la sincronización con
+                    Google Calendar ya están operativos. Tu consultorio digital
+                    está listo.
+                  </p>
+                </div>
+                <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:h-150 flex flex-col">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-black text-slate-900">
+                  Agenda de Hoy
+                </h3>
+                <Link
+                  href="/dashboard-psicologo/agenda"
+                  className="text-indigo-600 font-bold text-sm hover:underline"
+                >
+                  Ver todo
+                </Link>
+              </div>
+
+              {citasHoy.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-100 rounded-2xl">
+                  <p className="text-slate-500 font-medium">
+                    No tienes citas programadas para hoy.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                  {citasHoy.map((cita) => (
+                    <div
+                      key={cita.id}
+                      className="p-4 rounded-2xl border border-slate-100 bg-slate-50 flex gap-4"
+                    >
+                      <div className="flex flex-col items-center justify-center min-w-15 border-r border-slate-200 pr-4">
+                        <span className="text-lg font-black text-slate-900">
+                          {cita.hora_inicio.slice(0, 5)}
+                        </span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-lg mb-1">
+                          {cita.nombre_paciente}
+                        </h4>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${cita.modalidad === "Online" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}
+                        >
+                          {cita.modalidad}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* 🟢 CORRECCIÓN TAILWIND APLICADA AQUÍ */}
-      {mostrarModalCita && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl relative animate-in zoom-in-95 duration-200">
+      {mostrarModalCita && !mostrarPaywall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl relative">
             <button
               onClick={() => setMostrarModalCita(false)}
-              className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
+              className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full"
             >
               ✕
             </button>
@@ -341,7 +555,7 @@ export default function DashboardPsicologo() {
                   onChange={(e) =>
                     setFormulario({ ...formulario, paciente: e.target.value })
                   }
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
                   placeholder="Ej. Ana Pérez"
                 />
               </div>
@@ -357,7 +571,7 @@ export default function DashboardPsicologo() {
                     onChange={(e) =>
                       setFormulario({ ...formulario, fecha: e.target.value })
                     }
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
                 <div>
@@ -371,18 +585,86 @@ export default function DashboardPsicologo() {
                     onChange={(e) =>
                       setFormulario({ ...formulario, hora: e.target.value })
                     }
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Modalidad
+                </label>
+                <select
+                  value={formulario.modalidad}
+                  onChange={(e) =>
+                    setFormulario({ ...formulario, modalidad: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium"
+                >
+                  <option value="Presencial">Presencial (Consultorio)</option>
+                  <option value="Online">Online (Telemedicina VIP) 🔒</option>
+                </select>
+              </div>
+
               <button
                 type="submit"
                 disabled={guardandoCita}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-md mt-2 flex justify-center items-center gap-2"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3.5 px-6 rounded-xl mt-2"
               >
                 {guardandoCita ? "Guardando..." : "Guardar Sesión"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {mostrarPaywall && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center relative">
+            <button
+              onClick={() => setMostrarPaywall(false)}
+              className="absolute top-5 right-5 w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center"
+            >
+              ✕
+            </button>
+
+            <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg
+                className="w-10 h-10 text-indigo-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </div>
+
+            <h2 className="text-2xl font-black text-slate-900 mb-3">
+              Función de Élite
+            </h2>
+            <p className="text-slate-500 font-medium mb-8">
+              La telemedicina integrada y salas virtuales exclusivas están
+              disponibles en los planes superiores. Escala tu consultorio hoy
+              mismo.
+            </p>
+
+            <button
+              onClick={() => router.push("/dashboard-psicologo/suscripcion")}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg transition-colors mb-3"
+            >
+              Mejorar mi Plan
+            </button>
+            <button
+              onClick={() => setMostrarPaywall(false)}
+              className="w-full text-slate-500 font-bold py-3 hover:text-slate-800 transition-colors"
+            >
+              Quizás más tarde
+            </button>
           </div>
         </div>
       )}

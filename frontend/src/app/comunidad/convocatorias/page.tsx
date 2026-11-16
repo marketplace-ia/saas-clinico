@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Briefcase,
   MapPin,
@@ -31,7 +31,6 @@ export default function ConvocatoriasPage() {
   const [filtro, setFiltro] = useState<
     "todas" | "empleo" | "alianzas" | "academico"
   >("todas");
-
   const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([]);
   const [cargando, setCargando] = useState(true);
 
@@ -41,32 +40,44 @@ export default function ConvocatoriasPage() {
     useState<Convocatoria | null>(null);
   const [procesandoPostulacion, setProcesandoPostulacion] = useState(false);
   const [postulacionExitosa, setPostulacionExitosa] = useState(false);
+  const [errorBD, setErrorBD] = useState<string | null>(null);
 
-  const cargarConvocatorias = useCallback(async () => {
-    setCargando(true);
-    try {
-      const { data, error } = await supabase
-        .from("convocatorias")
-        .select("*")
-        .eq("activa", true)
-        .order("creado_el", { ascending: false });
-
-      if (error) throw error;
-      setConvocatorias(data as Convocatoria[]);
-    } catch (error) {
-      console.error("Error cargando convocatorias:", error);
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
-  // 🟢 CORRECCIÓN 1: Envolvemos en función interna asíncrona
+  // 🟢 CORRECCIÓN LINTER: Función de carga dentro del useEffect
   useEffect(() => {
-    const inicializar = async () => {
-      await cargarConvocatorias();
+    let montado = true;
+
+    const cargarConvocatorias = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("convocatorias")
+          .select("*")
+          .eq("activa", true)
+          .order("creado_el", { ascending: false });
+
+        if (error) throw error;
+
+        if (montado && data) {
+          setConvocatorias(data as Convocatoria[]);
+          setErrorBD(null);
+        }
+      } catch (error: unknown) {
+        if (montado) {
+          setErrorBD(
+            "No se pudieron cargar las convocatorias. Verifica que la tabla 'convocatorias' exista en Supabase.",
+          );
+          console.error("Error BD:", error);
+        }
+      } finally {
+        if (montado) setCargando(false);
+      }
     };
-    inicializar();
-  }, [cargarConvocatorias]);
+
+    cargarConvocatorias();
+
+    return () => {
+      montado = false;
+    };
+  }, []);
 
   const abrirModalPostulacion = async (convocatoria: Convocatoria) => {
     const {
@@ -92,7 +103,6 @@ export default function ConvocatoriasPage() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-
       if (!session) throw new Error("Sin sesión activa");
 
       const { error } = await supabase
@@ -104,9 +114,10 @@ export default function ConvocatoriasPage() {
         });
 
       if (error) {
-        if (error.code === "23505") {
+        if (error.code === "23505" || error.code === "23503") {
+          // UNIQUE violation o FK violation
           throw new Error(
-            "Ya has postulado anteriormente a esta convocatoria.",
+            "Ya has postulado anteriormente a esta convocatoria o hay un error en los datos de perfil.",
           );
         }
         throw error;
@@ -114,11 +125,11 @@ export default function ConvocatoriasPage() {
 
       setPostulacionExitosa(true);
     } catch (error: unknown) {
-      const msj =
+      alert(
         error instanceof Error
           ? error.message
-          : "Error al procesar la postulación.";
-      alert(msj);
+          : "Error al procesar la postulación.",
+      );
       setModalAbierto(false);
     } finally {
       setProcesandoPostulacion(false);
@@ -131,7 +142,6 @@ export default function ConvocatoriasPage() {
 
   return (
     <div className="animate-in fade-in duration-700 relative">
-      {/* Cabecera */}
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-4">
           Bolsa de Oportunidades
@@ -142,7 +152,6 @@ export default function ConvocatoriasPage() {
         </p>
       </div>
 
-      {/* Barra de Filtros */}
       <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row gap-2">
         <div className="relative flex-1 flex items-center">
           <Search className="w-5 h-5 text-slate-400 absolute left-4" />
@@ -181,7 +190,12 @@ export default function ConvocatoriasPage() {
         </div>
       </div>
 
-      {/* Lista de Convocatorias */}
+      {errorBD && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 text-sm">
+          {errorBD}
+        </div>
+      )}
+
       {cargando ? (
         <div className="py-20 flex flex-col items-center justify-center text-slate-400">
           <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
@@ -197,13 +211,7 @@ export default function ConvocatoriasPage() {
               className="bg-white border border-slate-200 p-6 rounded-3xl hover:border-indigo-300 hover:shadow-lg transition-all duration-300 group flex flex-col md:flex-row gap-6 items-start"
             >
               <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
-                  convocatoria.tipo === "empleo"
-                    ? "bg-indigo-50 text-indigo-600"
-                    : convocatoria.tipo === "alianzas"
-                      ? "bg-emerald-50 text-emerald-600"
-                      : "bg-amber-50 text-amber-600"
-                }`}
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${convocatoria.tipo === "empleo" ? "bg-indigo-50 text-indigo-600" : convocatoria.tipo === "alianzas" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}
               >
                 {convocatoria.tipo === "empleo" && (
                   <Briefcase className="w-7 h-7" />
@@ -262,21 +270,20 @@ export default function ConvocatoriasPage() {
             </div>
           ))}
 
-          {filtradas.length === 0 && (
+          {filtradas.length === 0 && !errorBD && (
             <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl">
               <Search className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <h3 className="text-xl font-black text-slate-900">
                 No hay convocatorias
               </h3>
               <p className="text-slate-500">
-                Intenta con otro filtro o categoría.
+                Intenta con otro filtro o categoría, o revisa más tarde.
               </p>
             </div>
           )}
         </div>
       )}
 
-      {/* MODAL DE POSTULACIÓN */}
       {modalAbierto && convocatoriaSeleccionada && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -291,8 +298,7 @@ export default function ConvocatoriasPage() {
                 <p className="text-slate-500 mb-8 font-medium">
                   Hemos notificado a{" "}
                   <strong>{convocatoriaSeleccionada.entidad}</strong>. Si tu
-                  perfil se ajusta, se pondrán en contacto contigo vía correo
-                  electrónico.
+                  perfil se ajusta, se pondrán en contacto contigo.
                 </p>
                 <button
                   onClick={() => setModalAbierto(false)}
@@ -323,7 +329,6 @@ export default function ConvocatoriasPage() {
                       {convocatoriaSeleccionada.entidad}
                     </p>
                   </div>
-                  {/* 🟢 CORRECCIÓN 2: Uso de &quot; para las comillas dentro del texto JSX */}
                   <p className="text-sm text-slate-500 mb-6 font-medium leading-relaxed">
                     Al hacer clic en &quot;Confirmar&quot;, tu perfil
                     profesional público y tus datos de contacto registrados en

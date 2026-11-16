@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "../../../../lib/supabase";
+import { supabase } from "../../../../lib/supabase"; // 🟢 Asegura que esta ruta apunte bien a tu cliente
 import Link from "next/link";
 
 export default function MiPerfilComunidadPage() {
@@ -15,32 +15,41 @@ export default function MiPerfilComunidadPage() {
     { id: "documentos", label: "Mis Descargas" },
   ];
 
+  // 🟢 CORRECCIÓN LINTER: Uso correcto de isMounted en useEffect
   useEffect(() => {
+    let isMounted = true;
+
     const cargarDatos = async () => {
       try {
         const {
           data: { user },
+          error,
         } = await supabase.auth.getUser();
-        if (user) {
+
+        if (error) throw error;
+
+        if (user && isMounted) {
           setEmailUsuario(user.email || "Usuario Clínico");
         }
       } catch (error) {
         console.error("Error cargando perfil:", error);
       } finally {
-        setCargando(false);
+        if (isMounted) setCargando(false);
       }
     };
 
     cargarDatos();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (
     <div className="w-full animate-in fade-in duration-700 slide-in-from-bottom-4">
-      {/* 1. CABECERA DEL PERFIL */}
       <div className="bg-slate-900 rounded-3xl p-8 md:p-12 mb-10 text-white relative overflow-hidden shadow-2xl flex flex-col md:flex-row items-center gap-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-3xl opacity-20 -translate-y-1/2 translate-x-1/3"></div>
 
-        {/* Avatar Grande */}
         <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white/20 bg-indigo-600 flex items-center justify-center text-4xl md:text-5xl font-black shadow-xl relative z-10 shrink-0">
           {emailUsuario ? emailUsuario.charAt(0).toUpperCase() : "U"}
         </div>
@@ -74,24 +83,18 @@ export default function MiPerfilComunidadPage() {
         </div>
       </div>
 
-      {/* 2. MENÚ DE NAVEGACIÓN DE PESTAÑAS */}
       <div className="flex overflow-x-auto hide-scrollbar gap-6 mb-8 border-b border-slate-200">
         {pestanas.map((pestana) => (
           <button
             key={pestana.id}
             onClick={() => setPestanaActiva(pestana.id)}
-            className={`pb-4 text-sm font-bold whitespace-nowrap transition-all border-b-2 ${
-              pestanaActiva === pestana.id
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
-            }`}
+            className={`pb-4 text-sm font-bold whitespace-nowrap transition-all border-b-2 ${pestanaActiva === pestana.id ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
           >
             {pestana.label}
           </button>
         ))}
       </div>
 
-      {/* 3. CONTENIDO DINÁMICO */}
       {cargando ? (
         <div className="py-20 flex justify-center">
           <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>

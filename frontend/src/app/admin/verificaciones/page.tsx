@@ -8,8 +8,8 @@ import Link from "next/link";
 interface PerfilPsicologo {
   id: string;
   psicologo_id: string;
-  nombre_completo?: string;
-  nombre_comercial: string;
+  nombres: string;
+  apellidos: string;
   especialidad: string;
   ciudad: string;
   estado_verificacion: string;
@@ -25,10 +25,19 @@ interface PagoSuscripcion {
   comprobante_url: string;
   fecha_creacion: string;
   perfil_psicologo?: {
-    nombre_completo: string;
-    nombre_comercial: string;
+    nombres: string;
+    apellidos: string;
   } | null;
   planes?: { nombre: string; id: string } | null;
+}
+
+interface TicketSoporte {
+  id: string;
+  asunto: string;
+  datos_contacto: string;
+  estado: string;
+  prioridad: string;
+  creado_el: string;
 }
 
 export default function SuperAdminHubPage() {
@@ -36,9 +45,11 @@ export default function SuperAdminHubPage() {
 
   const [cargando, setCargando] = useState(true);
   const [errorUI, setErrorUI] = useState("");
+
   const [pestanaActiva, setPestanaActiva] = useState<
-    "identidad" | "financiero"
+    "identidad" | "financiero" | "soporte"
   >("financiero");
+
   const [procesandoAccion, setProcesandoAccion] = useState<string | null>(null);
 
   const [profesionales, setProfesionales] = useState<PerfilPsicologo[]>([]);
@@ -51,8 +62,10 @@ export default function SuperAdminHubPage() {
     "revision" | "aprobado" | "rechazado"
   >("revision");
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [debugLog, setDebugLog] = useState<any>(null);
+  const [tickets, setTickets] = useState<TicketSoporte[]>([]);
+  const [filtroSoporte, setFiltroSoporte] = useState<"pendiente" | "resuelto">(
+    "pendiente",
+  );
 
   const [modalArchivo, setModalArchivo] = useState<{
     abierto: boolean;
@@ -64,20 +77,11 @@ export default function SuperAdminHubPage() {
   const cargarDatosAdmin = useCallback(async () => {
     setCargando(true);
 
-    const logInfo = {
-      usuarioAdmin: "",
-      totalPerfiles: 0,
-      totalPagosSuscripcion: 0,
-      estadosEncontrados: {} as Record<string, number>,
-      errorDiagnostico: null as string | null,
-    };
-
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      // 🟢 CORRECCIÓN: Validamos contra la Variable de Entorno en lugar de hardcodear
       const adminEmail =
         process.env.NEXT_PUBLIC_SUPERADMIN_EMAIL ||
         "pinedaesteban535@gmail.com";
@@ -86,15 +90,16 @@ export default function SuperAdminHubPage() {
         router.push("/login");
         return;
       }
-      logInfo.usuarioAdmin = session.user.email;
 
       const { data: dataPerfiles, error: errPerfiles } = await supabase
         .from("perfil_psicologo")
         .select("*");
-      if (errPerfiles) throw errPerfiles;
+
+      if (errPerfiles)
+        throw new Error(`Error en Perfiles: ${errPerfiles.message}`);
+
       if (dataPerfiles) {
         setProfesionales(dataPerfiles);
-        logInfo.totalPerfiles = dataPerfiles.length;
       }
 
       const { data: dataPlanes } = await supabase
@@ -103,21 +108,13 @@ export default function SuperAdminHubPage() {
 
       const { data: dataPagos, error: errPagos } = await supabase
         .from("pagos")
-        .select(`*, perfil_psicologo (nombre_completo, nombre_comercial)`)
+        .select(`*, perfil_psicologo (nombres, apellidos)`)
         .eq("entidad_tipo", "suscripcion")
         .order("fecha_creacion", { ascending: false });
 
-      if (errPagos) throw errPagos;
+      if (errPagos) throw new Error(`Error en Pagos: ${errPagos.message}`);
 
       if (dataPagos) {
-        logInfo.totalPagosSuscripcion = dataPagos.length;
-
-        dataPagos.forEach((p) => {
-          const estadoStr = String(p.estado);
-          logInfo.estadosEncontrados[estadoStr] =
-            (logInfo.estadosEncontrados[estadoStr] || 0) + 1;
-        });
-
         const pagosDB = dataPagos as unknown as Array<
           PagoSuscripcion & { entidad_id: string }
         >;
@@ -134,14 +131,28 @@ export default function SuperAdminHubPage() {
         });
         setPagos(pagosEnriquecidos);
       }
+
+      const { data: dataTickets, error: errTickets } = await supabase
+        .from("soporte_tickets")
+        .select("*")
+        .order("creado_el", { ascending: false });
+
+      if (errTickets) {
+        console.warn(
+          "Advertencia: No se pudo cargar la tabla de soporte_tickets",
+          errTickets,
+        );
+      } else if (dataTickets) {
+        setTickets(dataTickets);
+      }
     } catch (err: unknown) {
-      console.error("Detalle del error de carga:", err);
-      let errorMessage = "Error al cargar la información administrativa.";
-      if (err instanceof Error) errorMessage = err.message;
-      setErrorUI(`Fallo de conexión: ${errorMessage}`);
-      logInfo.errorDiagnostico = errorMessage;
+      console.error("Error al cargar la consola SuperAdmin:", err);
+      if (err instanceof Error) {
+        setErrorUI(`Error de sistema: ${err.message}`);
+      } else {
+        setErrorUI("Error al conectar con la base de datos.");
+      }
     } finally {
-      setDebugLog(logInfo);
       setCargando(false);
     }
   }, [router]);
@@ -216,37 +227,80 @@ export default function SuperAdminHubPage() {
       cargarDatosAdmin();
     } catch (err: unknown) {
       console.error("Error capturado:", err);
-      setErrorUI(
-        err instanceof Error ? err.message : "Error procesando la transacción.",
-      );
+      if (err instanceof Error) {
+        setErrorUI(err.message);
+      } else {
+        setErrorUI("Error procesando la transacción.");
+      }
     } finally {
       setProcesandoAccion(null);
     }
   };
 
-  const abrirVisorSeguro = async (
-    rutaBucket: string,
-    titulo: string,
-    esPrivado: boolean = true,
-  ) => {
+  // 🟢 RESOLVER TICKET DE SOPORTE (LINTER LIMPIADO)
+  const resolverTicket = async (id: string) => {
+    if (!confirm("¿Marcar este ticket como resuelto?")) return;
+    setProcesandoAccion(id);
     try {
-      let urlFinal = rutaBucket;
+      const { error } = await supabase
+        .from("soporte_tickets")
+        .update({ estado: "resuelto" })
+        .eq("id", id);
+      if (error) throw error;
+      cargarDatosAdmin();
+    } catch (err: unknown) {
+      console.error(err);
+      alert("Error al actualizar el ticket.");
+    } finally {
+      setProcesandoAccion(null);
+    }
+  };
 
-      if (esPrivado) {
-        const { data, error } = await supabase.storage
-          .from("comprobantes_pagos")
-          .createSignedUrl(rutaBucket, 60);
-        if (error || !data)
-          throw new Error("No se pudo generar la firma de seguridad.");
-        urlFinal = data.signedUrl;
+  const abrirVisorSeguro = async (rutaBucket: string, titulo: string) => {
+    try {
+      let bucketDestino = "comprobantes_pagos";
+      if (rutaBucket.includes("documentos_verificacion")) {
+        bucketDestino = "documentos_verificacion";
       }
 
-      const extension = rutaBucket.split(".").pop()?.toLowerCase();
+      const partesUrl = rutaBucket.split("/");
+      const nombreArchivo = partesUrl.pop() || "";
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const { data, error } = await supabase.storage
+        .from(bucketDestino)
+        .createSignedUrl(nombreArchivo, 60);
+
+      if (error) {
+        console.error("🚨 REPORTE DE ERROR SUPABASE:", error);
+        alert(
+          `🚨 BLOQUEO DE SEGURIDAD DETECTADO\n\n` +
+            `Bucket: ${bucketDestino}\n` +
+            `Archivo: ${nombreArchivo}\n` +
+            `Admin pidiendo acceso: ${session?.user?.email}\n\n` +
+            `Mensaje: ${error.message}\n\n` +
+            `Diagnóstico: Las políticas (RLS) en Supabase están bloqueando al administrador porque no es el dueño (owner) del archivo.`,
+        );
+        return;
+      }
+
+      const extension = nombreArchivo.split(".").pop()?.toLowerCase();
       const tipo = extension === "pdf" ? "pdf" : "imagen";
 
-      setModalArchivo({ abierto: true, titulo, archivo_url: urlFinal, tipo });
+      setModalArchivo({
+        abierto: true,
+        titulo,
+        archivo_url: data.signedUrl,
+        tipo,
+      });
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Error de seguridad.");
+      console.error("Error crítico:", error);
+      alert(
+        `Error crítico en el código: ${error instanceof Error ? error.message : "Desconocido"}`,
+      );
     }
   };
 
@@ -280,6 +334,18 @@ export default function SuperAdminHubPage() {
     return false;
   });
 
+  const ticketsFiltrados = tickets.filter(
+    (ticket) => ticket.estado === filtroSoporte,
+  );
+
+  const extraerTelefono = (datos: string) => {
+    const match = datos.match(/Teléfono:\s*([0-9\s]+)/);
+    if (match && match[1]) {
+      return match[1].replace(/\s/g, "");
+    }
+    return null;
+  };
+
   return (
     <div className="w-full animate-in fade-in duration-700 max-w-7xl mx-auto p-6 md:p-10 pb-20 font-sans">
       <div className="mb-8">
@@ -292,22 +358,11 @@ export default function SuperAdminHubPage() {
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
           Centro de Control y Auditoría
         </h1>
-        <p className="text-slate-500 font-medium mt-2">
-          Plataforma de SuperAdministrador. Revisa credenciales clínicas y
-          aprueba ingresos financieros.
+        <p className="text-slate-500 font-medium mt-2 mb-8">
+          Plataforma de SuperAdministrador. Revisa credenciales, finanzas y
+          brinda soporte a usuarios.
         </p>
       </div>
-
-      {debugLog && (
-        <div className="mb-10 bg-slate-900 text-cyan-400 p-6 rounded-3xl font-mono text-xs overflow-auto shadow-2xl border border-slate-700 max-h-fit">
-          <h3 className="text-white font-bold mb-4 text-base flex items-center gap-2">
-            <span>🛠️</span> Consola de Diagnóstico: Motor SaaS
-          </h3>
-          <pre className="whitespace-pre-wrap mb-4">
-            {JSON.stringify(debugLog, null, 2)}
-          </pre>
-        </div>
-      )}
 
       {errorUI && (
         <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 shadow-sm flex items-start gap-3">
@@ -328,7 +383,7 @@ export default function SuperAdminHubPage() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-8 bg-slate-100 p-1.5 rounded-2xl w-fit">
+      <div className="flex flex-wrap gap-2 mb-8 bg-slate-100 p-1.5 rounded-2xl w-fit">
         <button
           onClick={() => setPestanaActiva("financiero")}
           className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${pestanaActiva === "financiero" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
@@ -340,6 +395,12 @@ export default function SuperAdminHubPage() {
           className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${pestanaActiva === "identidad" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
         >
           Verificación Identidad
+        </button>
+        <button
+          onClick={() => setPestanaActiva("soporte")}
+          className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${pestanaActiva === "soporte" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+        >
+          Soporte y Recuperación
         </button>
       </div>
 
@@ -415,9 +476,9 @@ export default function SuperAdminHubPage() {
                             </td>
                             <td className="py-5 px-6">
                               <p className="font-bold text-slate-800">
-                                {pago.perfil_psicologo?.nombre_comercial ||
-                                  pago.perfil_psicologo?.nombre_completo ||
-                                  "Clínica Privada"}
+                                {pago.perfil_psicologo?.nombres
+                                  ? `${pago.perfil_psicologo.nombres} ${pago.perfil_psicologo.apellidos}`
+                                  : "Clínica Privada"}
                               </p>
                               <p className="text-xs font-bold text-slate-500">
                                 {pago.planes?.nombre}
@@ -430,7 +491,6 @@ export default function SuperAdminHubPage() {
                                     abrirVisorSeguro(
                                       pago.comprobante_url,
                                       pago.referencia_unica,
-                                      true,
                                     )
                                   }
                                   className="text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors border border-indigo-100 flex items-center gap-1.5 w-fit"
@@ -546,9 +606,9 @@ export default function SuperAdminHubPage() {
                           >
                             <td className="py-5 px-6">
                               <p className="font-bold text-slate-900">
-                                {prof.nombre_completo ||
-                                  prof.nombre_comercial ||
-                                  "Sin Nombre"}
+                                {prof.nombres && prof.apellidos
+                                  ? `${prof.nombres} ${prof.apellidos}`
+                                  : "Sin Nombre"}
                               </p>
                               <p className="text-xs font-medium text-slate-500">
                                 Ciudad: {prof.ciudad}
@@ -562,8 +622,7 @@ export default function SuperAdminHubPage() {
                                 onClick={() =>
                                   abrirVisorSeguro(
                                     prof.url_documento || "",
-                                    prof.nombre_completo || "Documento",
-                                    false,
+                                    prof.nombres || "Documento",
                                   )
                                 }
                                 className="text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors border border-blue-100"
@@ -615,6 +674,107 @@ export default function SuperAdminHubPage() {
               </div>
             </div>
           )}
+
+          {pestanaActiva === "soporte" && (
+            <div className="animate-in fade-in duration-300">
+              <div className="flex gap-2 mb-6">
+                <button
+                  onClick={() => setFiltroSoporte("pendiente")}
+                  className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${filtroSoporte === "pendiente" ? "bg-amber-100 text-amber-800" : "bg-white border border-slate-200 text-slate-600"}`}
+                >
+                  Tickets Pendientes
+                </button>
+                <button
+                  onClick={() => setFiltroSoporte("resuelto")}
+                  className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${filtroSoporte === "resuelto" ? "bg-indigo-100 text-indigo-800" : "bg-white border border-slate-200 text-slate-600"}`}
+                >
+                  Resueltos
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {ticketsFiltrados.length === 0 ? (
+                  <div className="col-span-full p-16 text-center text-slate-500 font-medium bg-white rounded-3xl border border-slate-200 border-dashed">
+                    No hay solicitudes de soporte en esta bandeja.
+                  </div>
+                ) : (
+                  ticketsFiltrados.map((ticket) => {
+                    const telefonoUsuario = extraerTelefono(
+                      ticket.datos_contacto,
+                    );
+                    const linkWa = telefonoUsuario
+                      ? `https://wa.me/593${telefonoUsuario.startsWith("0") ? telefonoUsuario.slice(1) : telefonoUsuario}?text=Hola,%20somos%20el%20equipo%20de%20soporte%20y%20seguridad%20de%20Clinesfera.%20Vimos%20tu%20solicitud%20para%20recuperar%20tu%20acceso.`
+                      : null;
+
+                    return (
+                      <div
+                        key={ticket.id}
+                        className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-shadow"
+                      >
+                        <div>
+                          <div className="flex justify-between items-start mb-4">
+                            <span
+                              className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${ticket.prioridad === "alta" ? "bg-rose-100 text-rose-600" : "bg-slate-100 text-slate-600"}`}
+                            >
+                              PRIORIDAD {ticket.prioridad}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">
+                              {new Date(ticket.creado_el).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          <h3 className="font-black text-lg text-slate-900 mb-3">
+                            {ticket.asunto}
+                          </h3>
+
+                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6">
+                            <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap leading-relaxed">
+                              {ticket.datos_contacto}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 mt-auto">
+                          {ticket.estado === "pendiente" && linkWa && (
+                            <a
+                              href={linkWa}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full bg-[#25D366] hover:bg-[#1ebd5b] text-white font-bold py-3 px-4 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
+                            >
+                              <svg
+                                className="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                              </svg>
+                              Contactar por WhatsApp
+                            </a>
+                          )}
+                          {ticket.estado === "pendiente" ? (
+                            <button
+                              onClick={() => resolverTicket(ticket.id)}
+                              disabled={procesandoAccion === ticket.id}
+                              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50"
+                            >
+                              {procesandoAccion === ticket.id
+                                ? "Procesando..."
+                                : "Marcar como Resuelto ✓"}
+                            </button>
+                          ) : (
+                            <span className="w-full bg-slate-100 text-slate-500 font-bold py-3 px-4 rounded-xl text-sm text-center block">
+                              Ticket Resuelto
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -653,7 +813,7 @@ export default function SuperAdminHubPage() {
                   title="Visor PDF"
                 />
               ) : (
-                // eslint-disable-next-line @next/next/no-img-element
+                /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={modalArchivo.archivo_url}
                   alt="Comprobante"

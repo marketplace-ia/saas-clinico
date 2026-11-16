@@ -13,46 +13,53 @@ export default function ComunidadPremiumLayout({
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // 🟢 ESTADO PARA MANEJAR LA SESIÓN INTELIGENTE
   const [usuarioLogueado, setUsuarioLogueado] = useState<{
     iniciales: string;
     rutaPanel: string;
   } | null>(null);
 
-  // Efecto sutil de sombra al hacer scroll
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 🟢 VERIFICADOR DE SESIÓN AL CARGAR LA COMUNIDAD
   useEffect(() => {
+    let montado = true;
+
     const verificarSesion = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (session?.user?.email) {
-        const email = session.user.email;
-        const { data } = await supabase
-          .from("roles_usuarios")
-          .select("rol")
-          .eq("correo", email)
-          .maybeSingle();
+        if (session?.user?.email && montado) {
+          const email = session.user.email;
+          const { data } = await supabase
+            .from("roles_usuarios")
+            .select("rol")
+            .eq("correo", email)
+            .maybeSingle();
 
-        let ruta = "/dashboard-paciente"; // Default
-        if (data?.rol === "psicologo") ruta = "/dashboard-psicologo";
-        if (data?.rol === "secretaria") ruta = "/dashboard-secretaria";
+          let ruta = "/dashboard-paciente"; // Default
+          if (data?.rol === "psicologo") ruta = "/dashboard-psicologo";
+          if (data?.rol === "secretaria") ruta = "/dashboard-secretaria";
 
-        setUsuarioLogueado({
-          iniciales: email.substring(0, 2).toUpperCase(),
-          rutaPanel: ruta,
-        });
+          setUsuarioLogueado({
+            iniciales: email.substring(0, 2).toUpperCase(),
+            rutaPanel: ruta,
+          });
+        }
+      } catch (error) {
+        console.error("Error verificando sesión en layout:", error);
       }
     };
+
     verificarSesion();
+
+    return () => {
+      montado = false;
+    };
   }, []);
 
   const navLinks = [
@@ -68,15 +75,10 @@ export default function ComunidadPremiumLayout({
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans flex flex-col text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
       <header
-        className={`sticky top-0 z-50 transition-all duration-300 ${
-          scrolled
-            ? "bg-white/80 backdrop-blur-md border-b border-slate-200/80 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)]"
-            : "bg-white border-b border-slate-100"
-        }`}
+        className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/80 backdrop-blur-md border-b border-slate-200/80 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)]" : "bg-white border-b border-slate-100"}`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
-            {/* Logo y Branding */}
             <div className="flex items-center gap-6 lg:gap-8 shrink-0">
               <Link
                 href="/comunidad"
@@ -95,7 +97,6 @@ export default function ComunidadPremiumLayout({
                 </div>
               </Link>
 
-              {/* Menú Escritorio (Con scroll horizontal si es necesario) */}
               <nav className="hidden lg:flex items-center space-x-1 ml-4 overflow-x-auto hide-scrollbar">
                 {navLinks.map((link) => {
                   const isActive =
@@ -106,11 +107,7 @@ export default function ComunidadPremiumLayout({
                     <Link
                       key={link.name}
                       href={link.path}
-                      className={`px-3 xl:px-4 py-2 rounded-full text-xs xl:text-sm font-bold transition-all duration-300 whitespace-nowrap ${
-                        isActive
-                          ? "bg-slate-900 text-white shadow-md"
-                          : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                      }`}
+                      className={`px-3 xl:px-4 py-2 rounded-full text-xs xl:text-sm font-bold transition-all duration-300 whitespace-nowrap ${isActive ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}`}
                     >
                       {link.name}
                     </Link>
@@ -119,7 +116,6 @@ export default function ComunidadPremiumLayout({
               </nav>
             </div>
 
-            {/* Acciones de Usuario (Escritorio) */}
             <div className="hidden lg:flex items-center gap-3 xl:gap-5 shrink-0">
               <button className="text-slate-400 hover:text-indigo-600 transition-colors p-2 rounded-full hover:bg-indigo-50">
                 <svg
@@ -137,7 +133,6 @@ export default function ComunidadPremiumLayout({
                 </svg>
               </button>
 
-              {/* LA CAMPANITA LLEVA AL CENTRO DE NOTIFICACIONES */}
               {usuarioLogueado && (
                 <Link
                   href="/comunidad/notificaciones"
@@ -163,7 +158,6 @@ export default function ComunidadPremiumLayout({
 
               <div className="w-px h-6 bg-slate-200"></div>
 
-              {/* 🟢 BOTÓN DE REGRESO AL INICIO (ESCRITORIO) */}
               <Link
                 href="/"
                 className="hidden lg:flex items-center gap-1.5 text-slate-500 hover:text-slate-900 font-bold text-xs xl:text-sm transition-colors"
@@ -185,7 +179,6 @@ export default function ComunidadPremiumLayout({
                 Inicio
               </Link>
 
-              {/* BOTÓN DINÁMICO DE SESIÓN Y CERTIFICADOS */}
               {usuarioLogueado ? (
                 <div className="flex items-center gap-4">
                   <Link
@@ -227,7 +220,6 @@ export default function ComunidadPremiumLayout({
               )}
             </div>
 
-            {/* Menú Hamburguesa (Móvil) */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="lg:hidden p-2 text-slate-500 hover:text-slate-900 focus:outline-none"
@@ -258,7 +250,6 @@ export default function ComunidadPremiumLayout({
           </div>
         </div>
 
-        {/* 📱 DESPLEGABLE MENÚ MÓVIL */}
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-t border-slate-100 absolute w-full shadow-2xl animate-in slide-in-from-top-2 duration-200">
             <nav className="px-4 pt-2 pb-6 space-y-1">
@@ -267,18 +258,13 @@ export default function ComunidadPremiumLayout({
                   key={link.name}
                   href={link.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-4 py-3 rounded-xl text-base font-bold transition-colors ${
-                    pathname === link.path
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
+                  className={`block px-4 py-3 rounded-xl text-base font-bold transition-colors ${pathname === link.path ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
                 >
                   {link.name}
                 </Link>
               ))}
 
               <div className="mt-6 pt-6 border-t border-slate-100">
-                {/* 🟢 BOTONES MÓVILES (Notificaciones, Certificados y Panel) */}
                 {usuarioLogueado ? (
                   <div className="flex flex-col gap-2">
                     <div className="grid grid-cols-2 gap-2">
@@ -341,7 +327,6 @@ export default function ComunidadPremiumLayout({
                   </Link>
                 )}
 
-                {/* 🟢 BOTÓN DE REGRESO AL INICIO (MÓVIL) */}
                 <Link
                   href="/"
                   onClick={() => setMobileMenuOpen(false)}

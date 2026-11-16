@@ -7,22 +7,46 @@ interface Paciente {
   id: string;
   nombre_completo: string;
   email: string;
+  telefono?: string;
 }
 
 export default function DirectorioSecretariaPage() {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
+  const [errorJefe, setErrorJefe] = useState<string | null>(null);
 
   useEffect(() => {
     const cargarDirectorio = async () => {
       setCargando(true);
       try {
-        // Al consultar la tabla 'pacientes', las reglas RLS de Supabase
-        // filtrarán automáticamente solo los que pertenecen al psicólogo de esta secretaria.
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.user?.id) throw new Error("Sin sesión activa");
+
+        // 🟢 1. IDENTIFICAR AL PSICÓLOGO JEFE
+        const { data: perfilData, error: perfilError } = await supabase
+          .from("perfil_secretaria")
+          .select("psicologo_id")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (perfilError || !perfilData?.psicologo_id) {
+          setErrorJefe(
+            "No tienes un psicólogo asignado. Contacta al administrador.",
+          );
+          setCargando(false);
+          return;
+        }
+
+        const idJefe = perfilData.psicologo_id;
+
+        // 🟢 2. TRAER SOLO LOS PACIENTES DE ESE DOCTOR
         const { data, error } = await supabase
           .from("pacientes")
-          .select("*")
+          .select("id, nombre_completo, email, telefono")
+          .eq("psicologo_id", idJefe)
           .order("nombre_completo", { ascending: true });
 
         if (error) throw error;
@@ -45,6 +69,13 @@ export default function DirectorioSecretariaPage() {
       paciente.email?.toLowerCase().includes(busqueda.toLowerCase()),
   );
 
+  if (errorJefe)
+    return (
+      <div className="p-10 font-bold text-red-600 bg-red-50 m-8 rounded-xl border border-red-200">
+        🚨 {errorJefe}
+      </div>
+    );
+
   return (
     <div className="w-full p-8 font-sans">
       <div className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
@@ -53,32 +84,17 @@ export default function DirectorioSecretariaPage() {
             Directorio de Pacientes
           </h1>
           <p className="text-gray-500 mt-1">
-            Base de datos de pacientes de tu especialista asignado.
+            Base de datos de pacientes exclusivos de tu especialista asignado.
           </p>
         </div>
 
         <div className="relative w-full md:w-80">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg
-              className="w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              ></path>
-            </svg>
-          </div>
           <input
             type="text"
             placeholder="Buscar por nombre o correo..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition shadow-sm"
+            className="w-full pl-4 pr-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition shadow-sm"
           />
         </div>
       </div>
@@ -136,8 +152,11 @@ export default function DirectorioSecretariaPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-5 text-right text-gray-500 text-sm">
-                      {paciente.email || "Sin correo"}
+                    <td className="p-5 text-right text-gray-500 text-sm flex flex-col items-end">
+                      <span className="font-bold">
+                        {paciente.email || "Sin correo"}
+                      </span>
+                      {paciente.telefono && <span>{paciente.telefono}</span>}
                     </td>
                   </tr>
                 ))}

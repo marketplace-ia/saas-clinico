@@ -1,94 +1,129 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { supabase } from "../../../lib/supabase";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function SalaVirtualPage() {
+function SalaVirtualContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const citaId = searchParams.get("cita");
 
   const [nombreUsuario, setNombreUsuario] = useState("");
   const [rol, setRol] = useState("");
   const [cargando, setCargando] = useState(true);
 
-  // Estados para la libreta del doctor
+  const [urlVideollamada, setUrlVideollamada] = useState("");
+  const [esGoogleMeet, setEsGoogleMeet] = useState(false);
+
   const [notaRapida, setNotaRapida] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
+    let montado = true;
+
     const iniciarEntornoVirtual = async () => {
-      // 1. Identificar quién está entrando a la sala
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (!user?.email) {
         router.push("/");
         return;
       }
 
-      // Nombre amigable para la videollamada
-      const nombrePart = user.email.split("@")[0];
-      setNombreUsuario(nombrePart);
+      if (montado) {
+        const nombrePart = user.email.split("@")[0];
+        setNombreUsuario(nombrePart);
+      }
 
-      // 2. Averiguar si es doctor o paciente para cambiar la interfaz
       const { data: rolData } = await supabase
         .from("roles_usuarios")
         .select("rol")
         .eq("correo", user.email)
         .maybeSingle();
 
-      setRol(rolData?.rol || "paciente");
-      setCargando(false);
+      if (montado) setRol(rolData?.rol || "paciente");
+
+      // 🟢 OBTENER EL ENLACE SEGURO Y DETECTAR SI ES GOOGLE MEET
+      if (citaId) {
+        const { data: citaData } = await supabase
+          .from("citas")
+          .select("enlace_reunion")
+          .eq("id", citaId)
+          .single();
+
+        if (montado && citaData?.enlace_reunion) {
+          setUrlVideollamada(citaData.enlace_reunion);
+          if (citaData.enlace_reunion.includes("meet.google.com")) {
+            setEsGoogleMeet(true);
+          }
+        } else if (montado) {
+          // Fallback temporal si la cita no tiene link guardado
+          setUrlVideollamada(`https://meet.jit.si/Clinesfera_${citaId}`);
+        }
+      } else {
+        if (montado)
+          setUrlVideollamada(
+            `https://meet.jit.si/Consultorio_${user.id.substring(0, 8)}`,
+          );
+      }
+
+      if (montado) setCargando(false);
     };
 
     iniciarEntornoVirtual();
-  }, [router]);
 
-  // Simulación de guardado rápido (luego lo conectaremos a Supabase si lo deseas)
+    return () => {
+      montado = false;
+    };
+  }, [router, citaId]);
+
   const handleGuardarNota = () => {
     setGuardando(true);
     setTimeout(() => {
-      // En una app real, aquí enviaríamos el texto a la tabla de notas
-      navigator.clipboard.writeText(notaRapida); // Lo copiamos al portapapeles por seguridad
+      navigator.clipboard.writeText(notaRapida);
       setGuardando(false);
       setMensaje("¡Apuntes guardados en tu portapapeles!");
       setTimeout(() => setMensaje(""), 3000);
     }, 1000);
   };
 
+  const abrirGoogleMeet = () => {
+    window.open(urlVideollamada, "_blank", "noopener,noreferrer");
+  };
+
   if (cargando) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center text-white">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="font-bold tracking-widest text-blue-400 animate-pulse">
-          ENCRIPTANDO CONEXIÓN...
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white w-full">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="font-bold tracking-widest text-indigo-400 animate-pulse uppercase text-sm">
+          Asegurando conexión y calendario...
         </p>
       </div>
     );
   }
 
-  // Generamos una sala única y segura en los servidores de Jitsi
-  // Le pasamos el nombre de nuestro usuario para que entre identificado
-  const roomName = "Clinesfera_Consultorio_Seguro_2026";
-  const jitsiUrl = `https://meet.jit.si/${roomName}#userInfo.displayName="${nombreUsuario}"`;
+  const iframeSrc = `${urlVideollamada}#userInfo.displayName="${nombreUsuario}"`;
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col font-sans selection:bg-blue-500 overflow-hidden">
-      {/* BARRA DE NAVEGACIÓN SUPERIOR (Modo Oscuro Clínico) */}
-      <header className="bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center text-white shrink-0">
+    <div className="min-h-screen w-full bg-slate-950 flex flex-col font-sans selection:bg-indigo-500 overflow-hidden">
+      <header className="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center text-white shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.7)]"></div>
+          <div className="w-3 h-3 bg-rose-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.7)]"></div>
           <h1 className="font-black tracking-wider text-lg">
             Clinesfera{" "}
-            <span className="font-light text-gray-400">| Consulta En Vivo</span>
+            <span className="font-light text-slate-400 hidden sm:inline-block">
+              | Ecosistema Clínico
+            </span>
           </h1>
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden md:inline-block text-gray-400 text-sm font-medium">
-            Conectado como:{" "}
+          <span className="hidden md:inline-block text-slate-400 text-sm font-medium">
+            Ingreso como:{" "}
             <span className="text-white font-bold">{nombreUsuario}</span>
           </span>
           <Link
@@ -97,52 +132,40 @@ export default function SalaVirtualPage() {
                 ? "/dashboard-psicologo"
                 : "/dashboard-paciente"
             }
-            className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-sm font-bold py-2 px-6 rounded-lg transition"
+            className="bg-slate-800 hover:bg-rose-500 hover:text-white hover:border-rose-500 text-slate-300 border border-slate-700 text-sm font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
           >
             Salir de la Sala
           </Link>
         </div>
       </header>
 
-      {/* ÁREA DE TRABAJO */}
       <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1920px] mx-auto">
-        {/* COLUMNA IZQUIERDA: Video en Vivo */}
-        <div
-          className={`flex-1 flex flex-col bg-black ${rol === "psicologo" ? "md:w-2/3 border-r border-gray-800" : "w-full"}`}
-        >
-          <iframe
-            src={jitsiUrl}
-            allow="camera; microphone; fullscreen; display-capture; autoplay"
-            className="w-full h-full min-h-[70vh] border-0"
-          ></iframe>
-        </div>
-
-        {/* COLUMNA DERECHA: Libreta (SOLO VISIBLE PARA PSICÓLOGOS) */}
+        {/* PANEL DE APUNTES (Solo Psicólogo) - Se mueve a la izquierda para mejor UX cuando se abre Meet */}
         {rol === "psicologo" && (
-          <div className="w-full md:w-1/3 bg-gray-900 flex flex-col h-full shrink-0">
-            <div className="p-6 border-b border-gray-800 bg-gray-900/50">
-              <h2 className="text-xl font-bold text-white flex items-center gap-3">
-                <span className="bg-blue-600 p-2 rounded-xl text-lg shadow-md">
+          <div className="w-full md:w-1/3 xl:w-1/4 bg-slate-900 flex flex-col h-full shrink-0 border-r border-slate-800">
+            <div className="p-6 border-b border-slate-800 bg-slate-900/50">
+              <h2 className="text-lg font-black text-white flex items-center gap-3">
+                <span className="bg-indigo-600 p-2 rounded-xl shadow-md">
                   📝
                 </span>
-                Apuntes en Vivo
+                Evolución en Vivo
               </h2>
-              <p className="text-gray-400 text-sm mt-2 font-medium leading-relaxed">
-                Escribe notas rápidas durante la sesión sin salir de la cámara.
-                Al guardar, se copiarán para tu expediente principal.
+              <p className="text-slate-400 text-xs mt-3 font-medium leading-relaxed">
+                Toma notas rápidas aquí mientras mantienes tu ventana de Meet
+                abierta al lado.
               </p>
             </div>
 
-            <div className="flex-1 p-6 flex flex-col bg-gray-900">
+            <div className="flex-1 p-6 flex flex-col bg-slate-900">
               <textarea
                 value={notaRapida}
                 onChange={(e) => setNotaRapida(e.target.value)}
-                placeholder="El paciente reporta que durante la semana..."
-                className="flex-1 w-full bg-gray-950 border border-gray-800 rounded-2xl p-5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-medium mb-4 text-sm"
+                placeholder="El paciente reporta que en esta semana..."
+                className="flex-1 w-full bg-slate-950 border border-slate-800 rounded-2xl p-5 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none font-medium mb-4 text-sm"
               ></textarea>
 
               {mensaje && (
-                <div className="bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-bold text-center mb-4 p-3 rounded-xl animate-in fade-in slide-in-from-bottom-2">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-bold text-center mb-4 p-3 rounded-xl animate-in fade-in slide-in-from-bottom-2">
                   {mensaje}
                 </div>
               )}
@@ -150,21 +173,74 @@ export default function SalaVirtualPage() {
               <button
                 onClick={handleGuardarNota}
                 disabled={guardando || !notaRapida.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold py-4 rounded-xl transition shadow-[0_0_15px_rgba(37,99,235,0.2)] flex items-center justify-center gap-2"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold py-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
               >
                 {guardando ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>{" "}
-                    Guardando...
-                  </>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  "Copiar y Guardar Apuntes"
+                  "Copiar Apuntes de Sesión"
                 )}
               </button>
             </div>
           </div>
         )}
+
+        {/* ÁREA DE VIDEOLLAMADA */}
+        <div
+          className={`flex-1 flex flex-col bg-black items-center justify-center relative w-full`}
+        >
+          {esGoogleMeet ? (
+            <div className="text-center p-8 max-w-lg animate-in zoom-in-95 duration-500">
+              <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-500/20">
+                <svg
+                  className="w-12 h-12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path d="M22 6L16 10V14L22 18V6Z" fill="#00832d" />
+                  <path d="M14 6H2V18H14V6Z" fill="#0066da" />
+                </svg>
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black text-white mb-4">
+                Reunión en Google Meet
+              </h2>
+              <p className="text-slate-400 font-medium text-sm md:text-base leading-relaxed mb-10">
+                Esta sesión utiliza la máxima calidad y seguridad de Google.{" "}
+                {rol === "psicologo"
+                  ? "Abre la llamada haciendo clic abajo y divide tu pantalla para ver a tu paciente y mantener tus apuntes aquí."
+                  : "El psicólogo te espera en la sala."}
+              </p>
+              <button
+                onClick={abrirGoogleMeet}
+                className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white font-black py-4 px-10 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all hover:scale-105 active:scale-95"
+              >
+                Ingresar a la Videollamada
+              </button>
+            </div>
+          ) : (
+            <iframe
+              src={iframeSrc}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              className="w-full h-full min-h-[70vh] border-0"
+            ></iframe>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function SalaVirtualPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        </div>
+      }
+    >
+      <SalaVirtualContent />
+    </Suspense>
   );
 }

@@ -25,9 +25,11 @@ class AssistantEventBus {
     callback: EventCallback<AssistantEventMap[K]>,
   ) {
     if (!this.listeners[event]) return;
+
+    // 🟢 SOLUCIÓN ESTRICTA TS: Le aseguramos al compilador que el arreglo filtrado mantiene su tipo original
     this.listeners[event] = this.listeners[event]!.filter(
       (cb) => cb !== callback,
-    );
+    ) as (typeof this.listeners)[K];
   }
 
   // Emitir evento (Lo usará el Asistente)

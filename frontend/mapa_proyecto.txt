@@ -1,0 +1,215 @@
+ESTRUCTURA DEL PROYECTO (SRC):
+├── app
+│   ├── acceso-personal
+│   │   └── page.tsx
+│   ├── activacion-secretaria
+│   │   └── page.tsx
+│   ├── activacion-staff
+│   │   └── page.tsx
+│   ├── actualizar-password
+│   │   └── page.tsx
+│   ├── admin
+│   │   └── verificaciones
+│   │       └── page.tsx
+│   ├── api
+│   │   ├── admin
+│   │   │   └── suscripciones
+│   │   │       ├── aprobar
+│   │   │       │   └── route.ts
+│   │   │       └── rechazar
+│   │   │           └── route.ts
+│   │   ├── billing
+│   │   │   ├── emitir
+│   │   │   │   └── route.ts
+│   │   │   └── sri
+│   │   │       └── route.ts
+│   │   ├── calendario
+│   │   │   ├── callback
+│   │   │   │   └── route.ts
+│   │   │   ├── conectar
+│   │   │   │   └── route.ts
+│   │   │   └── sync
+│   │   │       └── route.ts
+│   │   ├── citas
+│   │   │   └── agendar
+│   │   │       └── route.ts
+│   │   ├── copilot
+│   │   │   └── route.ts
+│   │   ├── equipo
+│   │   │   └── crear-secretaria
+│   │   │       └── route.ts
+│   │   ├── pacientes
+│   │   │   └── agendar
+│   │   │       └── route.ts
+│   │   ├── pagos
+│   │   │   ├── comprobante
+│   │   │   │   └── route.ts
+│   │   │   └── intencion
+│   │   │       └── route.ts
+│   │   ├── recaudacion
+│   │   │   └── procesar
+│   │   │       └── route.ts
+│   │   ├── suscripciones
+│   │   │   ├── comprobante
+│   │   │   │   └── route.ts
+│   │   │   └── intencion
+│   │   │       └── route.ts
+│   │   └── webhooks
+│   │       └── billing
+│   │           └── route.ts
+│   ├── auth
+│   │   └── callback
+│   │       └── route.ts
+│   ├── citas
+│   │   └── page.tsx
+│   ├── components
+│   │   ├── AssistantWidget.tsx
+│   │   ├── BotonCerrarSesion.tsx
+│   │   ├── GuardiaRutas.tsx
+│   │   ├── ResumenClinico.tsx
+│   │   └── SidebarPsicologo.tsx
+│   ├── comunidad
+│   │   ├── articulos
+│   │   │   ├── page.tsx
+│   │   │   └── [id]
+│   │   │       └── page.tsx
+│   │   ├── biblioteca
+│   │   │   └── page.tsx
+│   │   ├── certificados
+│   │   │   └── page.tsx
+│   │   ├── convocatorias
+│   │   │   └── page.tsx
+│   │   ├── grupos
+│   │   │   └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── notificaciones
+│   │   │   └── page.tsx
+│   │   ├── page.tsx
+│   │   ├── perfil
+│   │   │   └── page.tsx
+│   │   ├── profesionales
+│   │   │   ├── page.tsx
+│   │   │   └── [id]
+│   │   │       └── page.tsx
+│   │   ├── publicar-articulo
+│   │   │   └── page.tsx
+│   │   └── talleres
+│   │       └── page.tsx
+│   ├── dashboard-paciente
+│   │   ├── agendar
+│   │   │   └── page.tsx
+│   │   ├── citas
+│   │   │   └── page.tsx
+│   │   ├── diario
+│   │   │   └── page.tsx
+│   │   ├── historial
+│   │   │   └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── pagos
+│   │   │   └── page.tsx
+│   │   ├── perfil
+│   │   │   └── page.tsx
+│   │   └── psieduca
+│   │       └── page.tsx
+│   ├── dashboard-psicologo
+│   │   ├── agenda
+│   │   │   └── page.tsx
+│   │   ├── configuracion
+│   │   │   └── financiera
+│   │   │       └── page.tsx
+│   │   ├── configuracion-bancaria
+│   │   │   └── page.tsx
+│   │   ├── configuracion-facturacion
+│   │   │   └── page.tsx
+│   │   ├── equipo
+│   │   │   └── page.tsx
+│   │   ├── facturacion
+│   │   │   └── page.tsx
+│   │   ├── generador-certificados
+│   │   │   └── page.tsx
+│   │   ├── historias
+│   │   │   ├── page.tsx
+│   │   │   └── [id]
+│   │   │       └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── notas
+│   │   │   └── page.tsx
+│   │   ├── pacientes
+│   │   │   ├── page.tsx
+│   │   │   └── [id]
+│   │   │       └── page.tsx
+│   │   ├── page.tsx
+│   │   ├── pagos
+│   │   │   └── page.tsx
+│   │   ├── perfil
+│   │   │   └── page.tsx
+│   │   ├── recaudacion
+│   │   │   └── page.tsx
+│   │   ├── suscripcion
+│   │   │   └── page.tsx
+│   │   ├── talleres
+│   │   │   └── page.tsx
+│   │   └── teleconsulta
+│   │       └── [cita_id]
+│   │           └── page.tsx
+│   ├── dashboard-secretaria
+│   │   ├── citas
+│   │   │   └── page.tsx
+│   │   ├── directorio
+│   │   │   └── page.tsx
+│   │   ├── facturacion
+│   │   │   └── page.tsx
+│   │   ├── gestion-citas
+│   │   │   └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── recaudacion
+│   │       └── page.tsx
+│   ├── favicon.ico
+│   ├── globals.css
+│   ├── historial
+│   │   └── page.tsx
+│   ├── layout.tsx
+│   ├── login
+│   │   └── page.tsx
+│   ├── login-personal
+│   │   └── page.tsx
+│   ├── p
+│   │   └── [id]
+│   │       └── page.tsx
+│   ├── pacientes
+│   │   └── [id]
+│   │       └── page.tsx
+│   ├── page.tsx
+│   ├── privacidad
+│   │   └── page.tsx
+│   ├── proximamente
+│   │   └── page.tsx
+│   ├── recuperar
+│   │   └── page.tsx
+│   ├── registro
+│   │   ├── page.tsx
+│   │   └── verificacion
+│   │       └── page.tsx
+│   └── sala-virtual
+│       └── page.tsx
+├── components
+│   ├── CaseGuard.tsx
+│   └── ChatBot.tsx
+├── context
+│   └── LanguageContext.tsx
+├── lib
+│   ├── assistant
+│   │   ├── ChatContext.tsx
+│   │   ├── core
+│   │   │   └── IntentResolver.ts
+│   │   ├── EventBus.ts
+│   │   ├── knowledge
+│   │   │   ├── intents.ts
+│   │   │   └── routes.ts
+│   │   └── types.ts
+│   └── billing
+│       ├── BillingProvider.ts
+│       └── FactuplanAdapter.ts
+└── proxy.ts

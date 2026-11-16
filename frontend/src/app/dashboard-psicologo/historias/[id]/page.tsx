@@ -62,7 +62,6 @@ export default function ExpedienteClinicoMSP() {
     proxima_sesion: "",
   });
 
-  // 🟢 NASIMPA: Async wrapper para iti Hydration fix tapno di ag-trigger ti ESLint
   useEffect(() => {
     const inicializarFecha = async () => {
       setNuevaEvolucion((prev) => ({
@@ -116,7 +115,6 @@ export default function ExpedienteClinicoMSP() {
     }
   }, [id]);
 
-  // 🟢 NASIMPA: Async wrapper iti uneg ti epekto
   useEffect(() => {
     const inicializarDatos = async () => {
       if (id) {
@@ -129,7 +127,7 @@ export default function ExpedienteClinicoMSP() {
 
   const guardarCambiosHCU = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!historia) return;
+    if (!historia) return alert("Error: No existe el documento HCU base.");
     setGuardando(true);
     try {
       const { error } = await supabase
@@ -162,15 +160,16 @@ export default function ExpedienteClinicoMSP() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
+      // 🟢 CORRECCIÓN: Usar maybeSingle para que no truene si el usuario es nuevo
       const { data: tu } = await supabase
         .from("tenant_users")
         .select("tenant_id")
         .eq("usuario_id", session.user.id)
-        .single();
+        .maybeSingle();
 
       const { error } = await supabase.from("hcu_evoluciones").insert([
         {
-          tenant_id: tu?.tenant_id,
+          tenant_id: tu?.tenant_id || null, // Se permite nulo de forma segura
           historia_clinica_id: id,
           psicologo_id: session.user.id,
           numero_sesion: evoluciones.length + 1,

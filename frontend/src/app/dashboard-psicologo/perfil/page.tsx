@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../lib/supabase";
 
 export default function PerfilPage() {
-  // Estados de la marca
   const [nombreComercial, setNombreComercial] = useState(
     "Consultorio Psicológico",
   );
@@ -13,19 +12,20 @@ export default function PerfilPage() {
   const [mision, setMision] = useState("");
   const [precioConsulta, setPrecioConsulta] = useState<number>(50.0);
 
-  // Estados de carga y conexión
+  const [nombresReales, setNombresReales] = useState("Psicólogo");
+  const [apellidosReales, setApellidosReales] = useState("Nuevo");
+  const [perfilExiste, setPerfilExiste] = useState(false);
+
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
   const [conectadoGoogle, setConectadoGoogle] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [cargandoPerfil, setCargandoPerfil] = useState(true);
 
-  // Estado para capturar mensajes de éxito o error al volver de Google
   const [mensajeGoogle, setMensajeGoogle] = useState<{
     texto: string;
     tipo: "exito" | "error";
   } | null>(null);
 
-  // Cargar perfil al entrar
   const cargarPerfil = useCallback(async () => {
     try {
       const {
@@ -42,6 +42,10 @@ export default function PerfilPage() {
       if (error) throw error;
 
       if (data) {
+        setPerfilExiste(true);
+        setNombresReales(data.nombres || "Psicólogo");
+        setApellidosReales(data.apellidos || "Nuevo");
+
         setNombreComercial(data.nombre_comercial || "Consultorio Psicológico");
         setEslogan(data.eslogan || "");
         setColorMarca(data.color_marca || "#4F46E5");
@@ -74,19 +78,15 @@ export default function PerfilPage() {
             .eq("proveedor", "google_calendar")
             .eq("estado", "conectado")
             .maybeSingle();
-
           setConectadoGoogle(!!data);
         }
       } catch (error) {
         console.error("Error verificando conexión:", error);
       }
     };
-
     verificarConexion();
   }, [cargarPerfil]);
 
-  // 🟢 CORRECCIÓN ESLINT: Separamos la validación de URL en su propio useEffect
-  // Usamos un pequeño timer para evitar el "Cascading Render" síncrono que bloquea ESLint
   useEffect(() => {
     const timer = setTimeout(() => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -111,14 +111,12 @@ export default function PerfilPage() {
           window.location.pathname,
         );
       }
-    }, 50); // 50ms de retraso es imperceptible para el humano, pero suficiente para React
-
-    return () => clearTimeout(timer); // Limpieza de memoria
+    }, 50);
+    return () => clearTimeout(timer);
   }, []);
 
   const conectarGoogleCalendar = () => {
     setCargandoGoogle(true);
-    // Redirigimos al puente de Ida en el Backend
     window.location.href = "/api/calendario/conectar";
   };
 
@@ -131,24 +129,36 @@ export default function PerfilPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      const { error } = await supabase.from("perfil_psicologo").upsert(
-        {
-          psicologo_id: session.user.id,
-          nombre_comercial: nombreComercial,
-          eslogan: eslogan,
-          color_marca: colorMarca,
-          mision: mision,
-          precio_consulta: precioConsulta,
-          actualizado_en: new Date().toISOString(),
-        },
-        { onConflict: "psicologo_id" },
-      );
+      const payload = {
+        nombre_comercial: nombreComercial,
+        eslogan: eslogan,
+        color_marca: colorMarca,
+        mision: mision,
+        precio_consulta: precioConsulta,
+        actualizado_en: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      if (perfilExiste) {
+        const { error } = await supabase
+          .from("perfil_psicologo")
+          .update(payload)
+          .eq("psicologo_id", session.user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("perfil_psicologo").insert({
+          psicologo_id: session.user.id,
+          nombres: nombresReales,
+          apellidos: apellidosReales,
+          ...payload,
+        });
+        if (error) throw error;
+      }
+
       alert("¡Perfil guardado correctamente! 🚀");
-    } catch (err) {
-      console.error("Error al guardar perfil:", err);
-      alert("Hubo un error al guardar los cambios.");
+    } catch (err: unknown) {
+      const mensaje = err instanceof Error ? err.message : JSON.stringify(err);
+      console.error("Error al guardar perfil:", mensaje);
+      alert(`Hubo un error al guardar los cambios: ${mensaje}`);
     } finally {
       setGuardando(false);
     }
@@ -278,6 +288,7 @@ export default function PerfilPage() {
           </div>
         </div>
 
+        {/* 🟢 SECCIÓN DE INTEGRACIONES DE GOOGLE RESTAURADA */}
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
           <h3 className="text-xl font-black text-slate-900 mb-2 flex items-center gap-2">
             <svg

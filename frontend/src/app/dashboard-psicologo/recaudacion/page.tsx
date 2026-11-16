@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image"; // 🟢 CORRECCIÓN LINTER: Importamos el optimizador de imágenes de Next.js
 import { supabase } from "../../../../lib/supabase";
 
 interface RecaudacionPaciente {
@@ -32,6 +33,7 @@ export default function CentroRecaudacionPsicologo() {
   const [visorComprobante, setVisorComprobante] = useState<{
     url: string;
     titulo: string;
+    esPdf?: boolean;
   } | null>(null);
 
   const cargarPagos = useCallback(async (mostrarLoader: boolean = false) => {
@@ -47,21 +49,53 @@ export default function CentroRecaudacionPsicologo() {
       if (sessionError || !session?.user?.id)
         throw new Error("Error de autenticación.");
 
+      const myUUID = session.user.id;
+
       const { data: pagosDB, error: pagosError } = await supabase
         .from("recaudacion_pacientes")
-        .select(
-          `
-          id, cita_id, monto_pagado, estado_pago, comprobante_url, creado_el, psicologo_id,
-          citas (nombre_paciente, fecha, hora_inicio, modalidad)
-        `,
-        )
+        .select("*")
+        .eq("psicologo_id", myUUID)
         .order("creado_el", { ascending: false });
 
       if (pagosError) {
-        throw new Error("No se pudo descargar la información de recaudación.");
+        throw new Error(`BLOQUEO RLS: ${pagosError.message}`);
       }
 
-      setRecaudaciones((pagosDB || []) as unknown as RecaudacionPaciente[]);
+      if (!pagosDB || pagosDB.length === 0) {
+        setRecaudaciones([]);
+        setCargando(false);
+        return;
+      }
+
+      const idsCitas = pagosDB.map((p) => p.cita_id);
+      const { data: citasDB } = await supabase
+        .from("citas")
+        .select(
+          "id, nombre_paciente, paciente_nombre, fecha, hora_inicio, modalidad",
+        )
+        .in("id", idsCitas);
+
+      const recaudacionesCompletas: RecaudacionPaciente[] = pagosDB.map(
+        (pago) => {
+          const citaAsociada = citasDB?.find((c) => c.id === pago.cita_id);
+          return {
+            ...pago,
+            citas: citaAsociada
+              ? {
+                  nombre_paciente:
+                    citaAsociada.nombre_paciente ||
+                    citaAsociada.paciente_nombre ||
+                    "Paciente Anónimo",
+                  fecha: citaAsociada.fecha,
+                  hora_inicio: citaAsociada.hora_inicio,
+                  modalidad: citaAsociada.modalidad || "Virtual",
+                }
+              : null,
+          };
+        },
+      );
+
+      setRecaudaciones(recaudacionesCompletas);
     } catch (err: unknown) {
       const msj =
         err instanceof Error
@@ -124,9 +158,13 @@ export default function CentroRecaudacionPsicologo() {
       const { data, error } = await supabase.storage
         .from("comprobantes_pacientes")
         .createSignedUrl(rutaBucket, 60);
+
       if (error || !data)
         throw new Error("No autorizado para ver este recibo.");
-      setVisorComprobante({ url: data.signedUrl, titulo });
+
+      const esPdf = rutaBucket.toLowerCase().endsWith(".pdf");
+
+      setVisorComprobante({ url: data.signedUrl, titulo, esPdf });
     } catch (error: unknown) {
       alert(
         error instanceof Error
@@ -138,10 +176,16 @@ export default function CentroRecaudacionPsicologo() {
 
   const pagosFiltrados = recaudaciones.filter((p) => {
     if (filtro === "pendientes")
-      return p.estado_pago === "pending" || p.estado_pago === "pendiente_pago";
+      return (
+        p.estado_pago === "pending" ||
+        p.estado_pago === "pendiente_pago" ||
+        p.estado_pago === "requested"
+      );
     if (filtro === "revision")
       return (
-        p.estado_pago === "en_revision" || p.estado_pago === "under_review"
+        p.estado_pago === "en_revision" ||
+        p.estado_pago === "under_review" ||
+        p.estado_pago === "comprobante_recibido"
       );
     if (filtro === "aprobado")
       return p.estado_pago === "confirmed" || p.estado_pago === "aprobado";
@@ -161,6 +205,7 @@ export default function CentroRecaudacionPsicologo() {
         );
       case "en_revision":
       case "under_review":
+      case "comprobante_recibido":
         return (
           <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md font-bold text-xs uppercase flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>{" "}
@@ -169,6 +214,7 @@ export default function CentroRecaudacionPsicologo() {
         );
       case "pending":
       case "pendiente_pago":
+      case "requested":
         return (
           <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md font-bold text-xs uppercase">
             POR PAGAR
@@ -192,8 +238,8 @@ export default function CentroRecaudacionPsicologo() {
 
   if (cargando)
     return (
-      <div className="p-10 flex justify-center">
-        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      <div className="p-10 flex justify-center py-20">
+        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
       </div>
     );
 
@@ -206,14 +252,21 @@ export default function CentroRecaudacionPsicologo() {
           </h1>
           <p className="text-slate-500 font-medium text-lg max-w-2xl">
             Gestiona tus cuentas por cobrar, revisa los comprobantes de tus
-            pacientes y aplica los pagos recibidos en tu cuenta bancaria.
+            pacientes y aplica los pagos recibidos.
           </p>
         </div>
 
         <div className="flex gap-4 shrink-0 overflow-x-auto pb-2 md:pb-0">
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center min-w-30 shadow-sm">
             <p className="text-3xl font-black text-slate-700">
-              {recaudaciones.filter((p) => p.estado_pago === "pending").length}
+              {
+                recaudaciones.filter(
+                  (p) =>
+                    p.estado_pago === "pending" ||
+                    p.estado_pago === "pendiente_pago" ||
+                    p.estado_pago === "requested",
+                ).length
+              }
             </p>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">
               Pendientes
@@ -225,7 +278,8 @@ export default function CentroRecaudacionPsicologo() {
                 recaudaciones.filter(
                   (p) =>
                     p.estado_pago === "en_revision" ||
-                    p.estado_pago === "under_review",
+                    p.estado_pago === "under_review" ||
+                    p.estado_pago === "comprobante_recibido",
                 ).length
               }
             </p>
@@ -265,7 +319,14 @@ export default function CentroRecaudacionPsicologo() {
         >
           Por Pagar{" "}
           <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md text-xs">
-            {recaudaciones.filter((p) => p.estado_pago === "pending").length}
+            {
+              recaudaciones.filter(
+                (p) =>
+                  p.estado_pago === "pending" ||
+                  p.estado_pago === "pendiente_pago" ||
+                  p.estado_pago === "requested",
+              ).length
+            }
           </span>
         </button>
         <button
@@ -278,7 +339,8 @@ export default function CentroRecaudacionPsicologo() {
               recaudaciones.filter(
                 (p) =>
                   p.estado_pago === "en_revision" ||
-                  p.estado_pago === "under_review",
+                  p.estado_pago === "under_review" ||
+                  p.estado_pago === "comprobante_recibido",
               ).length
             }
           </span>
@@ -387,7 +449,8 @@ export default function CentroRecaudacionPsicologo() {
                         </button>
                       )}
                       {(pago.estado_pago === "en_revision" ||
-                        pago.estado_pago === "under_review") && (
+                        pago.estado_pago === "under_review" ||
+                        pago.estado_pago === "comprobante_recibido") && (
                         <button
                           onClick={() => setPagoAConfirmar(pago)}
                           className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-1.5 rounded-lg text-sm font-black transition-colors shadow-sm"
@@ -395,7 +458,9 @@ export default function CentroRecaudacionPsicologo() {
                           Aplicar pago
                         </button>
                       )}
-                      {pago.estado_pago === "pending" && (
+                      {(pago.estado_pago === "pending" ||
+                        pago.estado_pago === "pendiente_pago" ||
+                        pago.estado_pago === "requested") && (
                         <span className="text-xs font-bold text-slate-400">
                           Esperando al paciente
                         </span>
@@ -473,22 +538,37 @@ export default function CentroRecaudacionPsicologo() {
         </div>
       )}
 
+      {/* 🟢 VISOR UNIVERSAL DE COMPROBANTES CON LINTER FELIZ */}
       {visorComprobante && (
         <div
           className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
           onClick={() => setVisorComprobante(null)}
         >
-          <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
-            <button className="absolute -top-12 right-0 text-white hover:text-rose-400 font-bold bg-slate-800/50 px-4 py-2 rounded-xl transition-colors">
+          <div className="relative max-w-5xl w-full h-[85vh] flex flex-col items-center">
+            <button className="absolute -top-12 right-0 text-white hover:text-rose-400 font-bold bg-slate-800/50 px-4 py-2 rounded-xl transition-colors z-10">
               Cerrar Visor ✕
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={visorComprobante.url}
-              alt={`Comprobante de ${visorComprobante.titulo}`}
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border-4 border-white"
+
+            <div
+              className="w-full h-full bg-slate-100 rounded-xl shadow-2xl overflow-hidden flex items-center justify-center p-2 border-4 border-white relative"
               onClick={(e) => e.stopPropagation()}
-            />
+            >
+              {visorComprobante.esPdf ? (
+                <iframe
+                  src={visorComprobante.url}
+                  className="w-full h-full rounded-lg border-0"
+                  title={`Comprobante de ${visorComprobante.titulo}`}
+                />
+              ) : (
+                <Image
+                  src={visorComprobante.url}
+                  alt={`Comprobante de ${visorComprobante.titulo}`}
+                  fill
+                  className="object-contain"
+                  unoptimized
+                />
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -19,46 +19,45 @@ export default function CertificadosPage() {
   const [certificadoActivo, setCertificadoActivo] =
     useState<CertificadoDB | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [errorBD, setErrorBD] = useState<string | null>(null); // 🟢 Rastreador visual de errores
 
-  // 🟢 CORRECCIÓN APLICADA: Toda la lógica asíncrona ahora vive de forma segura dentro del useEffect
   useEffect(() => {
-    let isMounted = true; // Control de seguridad anti-fugas de memoria
+    let isMounted = true;
 
     const fetchCertificados = async () => {
       try {
-        // 1. Identificar al usuario activo
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession();
 
-        if (!session?.user?.email) {
+        if (sessionError || !session?.user?.id) {
           if (isMounted) setCargando(false);
           return;
         }
 
-        // 2. Buscar su ID en la tabla principal
-        const { data: usuario } = await supabase
-          .from("roles_usuarios")
-          .select("id")
-          .eq("correo", session.user.email)
-          .single();
+        // 🟢 OPTIMIZACIÓN: Buscamos directamente por ID de usuario en la tabla de certificados
+        const { data: certs, error } = await supabase
+          .from("certificados")
+          .select("*")
+          .eq("usuario_id", session.user.id);
 
-        if (usuario) {
-          // 3. Traer solo los certificados de este usuario
-          const { data: certs, error } = await supabase
-            .from("certificados")
-            .select("*")
-            .eq("usuario_id", usuario.id);
+        if (error) throw error;
 
-          if (!error && certs && isMounted) {
-            setCertificados(certs);
-            // Auto-seleccionar el primero si está emitido
-            const primerEmitido = certs.find((c) => c.estado === "Emitido");
-            if (primerEmitido) setCertificadoActivo(primerEmitido);
-          }
+        if (certs && isMounted) {
+          setCertificados(certs);
+          setErrorBD(null);
+
+          const primerEmitido = certs.find((c) => c.estado === "Emitido");
+          if (primerEmitido) setCertificadoActivo(primerEmitido);
         }
-      } catch (error) {
-        console.error("Error cargando certificados:", error);
+      } catch (error: unknown) {
+        if (isMounted) {
+          console.error("Error BD Certificados:", error);
+          setErrorBD(
+            "No se pudieron cargar los certificados. Verifica la tabla en Supabase.",
+          );
+        }
       } finally {
         if (isMounted) setCargando(false);
       }
@@ -66,7 +65,6 @@ export default function CertificadosPage() {
 
     fetchCertificados();
 
-    // Limpieza cuando el usuario sale de la página
     return () => {
       isMounted = false;
     };
@@ -74,7 +72,6 @@ export default function CertificadosPage() {
 
   return (
     <div className="w-full animate-in fade-in duration-700 slide-in-from-bottom-4 pb-12">
-      {/* 1. CABECERA */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
           <Link
@@ -93,8 +90,14 @@ export default function CertificadosPage() {
         </div>
       </div>
 
+      {/* 🟢 MOSTRADOR DE ERRORES */}
+      {errorBD && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 text-sm">
+          🚨 {errorBD}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* 2. LISTADO DE CERTIFICADOS (Sidebar Izquierdo) */}
         <div className="lg:col-span-4 space-y-4">
           <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 px-1">
             Historial Académico
@@ -104,7 +107,7 @@ export default function CertificadosPage() {
             <div className="flex justify-center py-10">
               <div className="w-8 h-8 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
             </div>
-          ) : certificados.length === 0 ? (
+          ) : certificados.length === 0 && !errorBD ? (
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center">
               <p className="text-slate-500 font-medium text-sm">
                 Aún no tienes certificados registrados en la plataforma.
@@ -128,13 +131,7 @@ export default function CertificadosPage() {
               >
                 <div className="flex justify-between items-start mb-2">
                   <span
-                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${
-                      certificadoActivo?.id === cert.id
-                        ? "bg-white/20 text-white"
-                        : cert.estado === "En Curso"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-emerald-100 text-emerald-700"
-                    }`}
+                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${certificadoActivo?.id === cert.id ? "bg-white/20 text-white" : cert.estado === "En Curso" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}
                   >
                     {cert.estado}
                   </span>
@@ -154,7 +151,6 @@ export default function CertificadosPage() {
           )}
         </div>
 
-        {/* 3. VISOR DEL DIPLOMA (Panel Derecho) */}
         <div className="lg:col-span-8">
           {certificadoActivo ? (
             <div className="bg-white rounded-4xl p-6 md:p-8 border border-slate-200 shadow-xl shadow-slate-200/50 flex flex-col relative overflow-hidden">
@@ -200,7 +196,7 @@ export default function CertificadosPage() {
 
               <div className="w-full aspect-[1.414/1] bg-linear-to-br from-indigo-900 via-slate-900 to-indigo-900 rounded-2xl p-2 md:p-4 shadow-2xl relative">
                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
-                <div className="w-full h-full border border-white/20 rounded-xl p-6 md:p-12 flex flex-col items-center justify-center text-center relative bg-white/5 backdrop-blur-xs">
+                <div className="w-full h-full border border-white/20 rounded-xl p-6 md:p-12 flex flex-col items-center justify-center text-center relative bg-white/5 backdrop-blur-sm">
                   <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center text-white/80 font-serif text-3xl mb-6 border border-white/20">
                     Ψ
                   </div>
@@ -228,7 +224,7 @@ export default function CertificadosPage() {
               </div>
             </div>
           ) : (
-            <div className="h-full bg-slate-50 rounded-4xl border border-slate-200 flex flex-col items-center justify-center p-12 text-center min-h-125">
+            <div className="h-full bg-slate-50 rounded-4xl border border-slate-200 flex flex-col items-center justify-center p-12 text-center min-h-500px">
               <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 text-slate-300">
                 <svg
                   className="w-10 h-10"
@@ -248,7 +244,8 @@ export default function CertificadosPage() {
                 Sin Certificados
               </h3>
               <p className="text-slate-500 font-medium">
-                No se encontraron certificados emitidos en tu historial.
+                Selecciona un certificado para visualizarlo aquí o inscríbete a
+                un evento.
               </p>
             </div>
           )}

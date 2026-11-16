@@ -4,7 +4,9 @@ import { useState } from "react";
 import { supabase } from "../../../../lib/supabase";
 
 export default function SubirVerificacionPage() {
-  const [nombreCompleto, setNombreCompleto] = useState(""); // 🟢 NUEVO ESTADO
+  // 🟢 SEPARAMOS NOMBRES Y APELLIDOS PARA ENCAJAR CON LA BD
+  const [nombres, setNombres] = useState("");
+  const [apellidos, setApellidos] = useState("");
   const [cedula, setCedula] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -12,9 +14,9 @@ export default function SubirVerificacionPage() {
 
   const manejarSubida = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombreCompleto || !cedula || !archivo) {
+    if (!nombres || !apellidos || !cedula || !archivo) {
       setMensaje(
-        "Protocolo de seguridad: Es obligatorio ingresar su nombre, identificación y adjuntar el documento de respaldo.",
+        "Protocolo de seguridad: Es obligatorio ingresar sus nombres, apellidos, identificación y adjuntar el documento de respaldo.",
       );
       return;
     }
@@ -26,6 +28,7 @@ export default function SubirVerificacionPage() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
       if (!session)
         throw new Error("Debe autenticarse en el sistema para continuar.");
 
@@ -33,6 +36,7 @@ export default function SubirVerificacionPage() {
       const fileExt = archivo.name.split(".").pop();
       const fileName = `${userId}-${Math.random()}.${fileExt}`;
 
+      // 1. Subimos el archivo al Storage
       const { error: uploadError } = await supabase.storage
         .from("documentos_verificacion")
         .upload(fileName, archivo);
@@ -45,19 +49,21 @@ export default function SubirVerificacionPage() {
         .from("documentos_verificacion")
         .getPublicUrl(fileName);
 
+      // 2. 🟢 GUARDAMOS EN LA BD USANDO EL ESQUEMA ESTRICTO
       const { error: updateError } = await supabase
         .from("perfil_psicologo")
         .upsert({
-          id: userId,
-          psicologo_id: userId,
-          nombre_completo: nombreCompleto.toUpperCase(), // 🟢 GUARDAMOS EL NOMBRE LEGAL
-          cedula: cedula,
-          url_documento: publicUrl,
-          estado_verificacion: "pendiente",
+          psicologo_id: userId, // Llave primaria correcta
+          nombres: nombres.toUpperCase(), // Separado
+          apellidos: apellidos.toUpperCase(), // Separado
+          cedula: cedula, // Nueva columna
+          url_documento: publicUrl, // Nueva columna
+          estado_verificacion: "pendiente", // Nueva columna
         });
 
       if (updateError) throw updateError;
 
+      // Éxito: Redirigir al dashboard
       window.location.href = "/dashboard-psicologo";
     } catch (error) {
       console.error("Error completo:", error);
@@ -103,23 +109,44 @@ export default function SubirVerificacionPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-3xl sm:px-10 border border-slate-100">
           <form className="space-y-6" onSubmit={manejarSubida}>
-            {/* 🟢 NUEVO CAMPO DE NOMBRE */}
+            {/* 🟢 NOMBRES */}
             <div>
               <label
-                htmlFor="nombreCompleto"
+                htmlFor="nombres"
                 className="block text-sm font-bold text-slate-700"
               >
-                Nombres y Apellidos Completos
+                Nombres
               </label>
               <div className="mt-2">
                 <input
-                  id="nombreCompleto"
+                  id="nombres"
                   type="text"
                   required
-                  value={nombreCompleto}
-                  onChange={(e) => setNombreCompleto(e.target.value)}
+                  value={nombres}
+                  onChange={(e) => setNombres(e.target.value)}
                   className="appearance-none block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 font-medium uppercase"
-                  placeholder="Ej: DR. JUAN PÉREZ"
+                  placeholder="Ej: JUAN CARLOS"
+                />
+              </div>
+            </div>
+
+            {/* 🟢 APELLIDOS */}
+            <div>
+              <label
+                htmlFor="apellidos"
+                className="block text-sm font-bold text-slate-700"
+              >
+                Apellidos
+              </label>
+              <div className="mt-2">
+                <input
+                  id="apellidos"
+                  type="text"
+                  required
+                  value={apellidos}
+                  onChange={(e) => setApellidos(e.target.value)}
+                  className="appearance-none block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 font-medium uppercase"
+                  placeholder="Ej: PÉREZ LÓPEZ"
                 />
               </div>
             </div>

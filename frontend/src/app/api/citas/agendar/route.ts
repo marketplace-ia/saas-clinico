@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     const precio = psicologoRes.data?.precio_consulta || 50.0;
     const tenant_id = tenantRes.data?.tenant_id || null;
 
+    // 1. DOUBLE-BOOKING PREVENTION
     const { data: conflicto } = await supabase
       .from("citas")
       .select("id")
@@ -84,6 +85,36 @@ export async function POST(req: Request) {
     const horaFinInt = (horaInt + 1) % 24;
     const hora_fin = `${horaFinInt.toString().padStart(2, "0")}:${minutoStr}:00`;
 
+    // 🟢 2. CORRECCIÓN DE MODALIDAD Y GENERACIÓN DE GOOGLE MEET
+    const modalidadFinal = modalidad || "Virtual";
+    let enlaceReunion = null;
+    const esOnline =
+      modalidadFinal === "Online" || modalidadFinal === "Virtual";
+
+    if (esOnline) {
+      // 🔑 Generamos un link falso de Google Meet con formato oficial (xxx-yyyy-zzz) para activar la UI de tu Sala Virtual Súper Premium
+      const chars = "abcdefghijklmnopqrstuvwxyz";
+      const g = (len: number) =>
+        Array.from({ length: len })
+          .map(() => chars.charAt(Math.floor(Math.random() * chars.length)))
+          .join("");
+      const meetCode = `${g(3)}-${g(4)}-${g(3)}`;
+
+      enlaceReunion = `https://meet.google.com/${meetCode}`;
+
+      /*
+      ===============================================================
+      📌 ESPACIO RESERVADO PARA LA INTEGRACIÓN FINAL DE GOOGLE CALENDAR
+      ===============================================================
+      Cuando obtengas las credenciales OAuth 2.0 de Google Cloud, reemplazarás 
+      las 4 líneas de arriba por el código que llame a la API de Google (calendar.events.insert).
+      Google te devolverá el enlace oficial en `response.data.hangoutLink`, 
+      y ese será el que guardes en la variable `enlaceReunion`.
+      ===============================================================
+      */
+    }
+
+    // 3. REGISTRAR CITA Y BLOQUEAR EL CALENDARIO
     const { data: cita, error: errCita } = await supabase
       .from("citas")
       .insert({
@@ -95,10 +126,11 @@ export async function POST(req: Request) {
         fecha,
         hora_inicio,
         hora_fin,
-        modalidad: modalidad || "Virtual",
-        estado: "confirmed",
+        modalidad: modalidadFinal,
+        estado: "requested", // Usamos "requested" para que el psicólogo deba aprobarla en su agenda, y la hora queda bloqueada.
+        enlace_reunion: enlaceReunion,
       })
-      .select("id")
+      .select("id, enlace_reunion")
       .single();
 
     if (errCita || !cita)
@@ -108,6 +140,7 @@ export async function POST(req: Request) {
     const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const referenciaUnica = `CIT-${year}-${randomCode}`;
 
+    // 4. GENERAR RECAUDACIÓN PENDIENTE
     const { error: errRecaudacion } = await supabase
       .from("recaudacion_pacientes")
       .insert({
@@ -131,10 +164,10 @@ export async function POST(req: Request) {
         estado: "pending",
         metodo_pago: "bank_transfer",
       });
-
       if (errPago) console.error("Error BD Pagos:", errPago.message);
     }
 
+    // 5. INTENTO DE SINCRONIZACIÓN
     try {
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL ||
@@ -147,7 +180,10 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
           Authorization: req.headers.get("Authorization") || "",
         },
-        body: JSON.stringify({ cita_id: cita.id }),
+        body: JSON.stringify({
+          cita_id: cita.id,
+          enlace_meet: cita.enlace_reunion,
+        }),
       });
     } catch (syncErr) {
       console.error("[Google Sync Trigger Error]:", syncErr);
@@ -157,11 +193,12 @@ export async function POST(req: Request) {
       success: true,
       cita_id: cita.id,
       referencia: referenciaUnica,
+      enlace_reunion: cita.enlace_reunion,
     });
   } catch (error: unknown) {
     const mensaje =
       error instanceof Error ? error.message : "Error interno del servidor";
     console.error("Error en API de Citas:", mensaje);
-    return NextResponse.json({ error: mensaje }, { status: 400 }); // Status 400 evita que el celular colapse
+    return NextResponse.json({ error: mensaje }, { status: 400 });
   }
 }

@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 
 interface Taller {
   id: string;
   titulo: string;
-  fecha_hora: string;
+  fecha: string;
+  hora: string;
   modalidad: string;
-  precio: number;
+  precio: string;
 }
 
 interface PostComunidad {
@@ -27,7 +28,6 @@ interface RawPost {
   creado_el: string;
 }
 
-// 🟢 BARO NGA INTERFACE: Para iti Artikulo a naggapu iti DB
 interface Articulo {
   id: string;
   titulo: string;
@@ -45,64 +45,71 @@ export default function ComunidadExplorarPage() {
 
   const [eventos, setEventos] = useState<Taller[]>([]);
   const [conversaciones, setConversaciones] = useState<PostComunidad[]>([]);
-
-  // 🟢 KINIKKAT TI HARDCODED STATE: Ita ket maysa a nadalus nga awan linaonna nga array
   const [articulos, setArticulos] = useState<Articulo[]>([]);
+  const [errorBD, setErrorBD] = useState<string | null>(null);
 
   const [nuevoDebate, setNuevoDebate] = useState({
     pregunta: "",
     tag: "Debate Clínico",
   });
 
-  const cargarDatos = useCallback(async () => {
-    setCargando(true);
-    try {
-      // 1. Kargaen dagiti Artikulo
-      const { data: dataArticulos } = await supabase
-        .from("articulos_comunidad")
-        .select("*")
-        .order("creado_el", { ascending: false })
-        .limit(2);
-
-      if (dataArticulos) setArticulos(dataArticulos);
-
-      // 2. Kargaen dagiti Pasken
-      const { data: dataEventos } = await supabase
-        .from("talleres")
-        .select("id, titulo, fecha_hora, modalidad, precio")
-        .eq("estado", "activo")
-        .order("fecha_hora", { ascending: true })
-        .limit(3);
-
-      if (dataEventos) setEventos(dataEventos);
-
-      // 3. Kargaen dagiti Post iti Komunidad
-      const { data: dataPosts } = await supabase
-        .from("comunidad_posts")
-        .select("id, titulo, contenido, creado_el")
-        .eq("estado", "publicado")
-        .order("creado_el", { ascending: false });
-
-      if (dataPosts) {
-        const postsFormateados = dataPosts.map((p: RawPost) => ({
-          ...p,
-          perfil_psicologo: { nombre_completo: "Miembro de la Comunidad" },
-        }));
-        setConversaciones(postsFormateados as PostComunidad[]);
-      }
-    } catch (error) {
-      console.error("Error cargando comunidad:", error);
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const iniciar = async () => {
-      await cargarDatos();
+    let montado = true;
+
+    const cargarDatos = async () => {
+      try {
+        const { data: dataArticulos } = await supabase
+          .from("articulos_comunidad")
+          .select("*")
+          .order("creado_el", { ascending: false })
+          .limit(2);
+
+        if (montado && dataArticulos) setArticulos(dataArticulos as Articulo[]);
+
+        const { data: dataEventos, error: errEventos } = await supabase
+          .from("talleres")
+          .select("id, titulo, fecha, hora, modalidad, precio")
+          .eq("estado", "Activo")
+          .order("fecha", { ascending: true })
+          .limit(3);
+
+        if (errEventos) throw errEventos;
+        if (montado && dataEventos) setEventos(dataEventos as Taller[]);
+
+        const { data: dataPosts } = await supabase
+          .from("comunidad_posts")
+          .select("id, titulo, contenido, creado_el")
+          .eq("estado", "publicado")
+          .order("creado_el", { ascending: false })
+          .limit(5);
+
+        if (montado && dataPosts) {
+          const postsFormateados = dataPosts.map((p: RawPost) => ({
+            ...p,
+            perfil_psicologo: { nombre_completo: "Miembro de la Comunidad" },
+          }));
+          setConversaciones(postsFormateados as PostComunidad[]);
+        }
+
+        if (montado) setErrorBD(null);
+      } catch (error: unknown) {
+        if (montado) {
+          console.error("Error BD Feed:", error);
+          setErrorBD(
+            "No se pudieron cargar todas las secciones. Faltan tablas en la base de datos.",
+          );
+        }
+      } finally {
+        if (montado) setCargando(false);
+      }
     };
-    iniciar();
-  }, [cargarDatos]);
+
+    cargarDatos();
+
+    return () => {
+      montado = false;
+    };
+  }, []);
 
   const handlePublicarDebate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,7 +121,7 @@ export default function ComunidadExplorarPage() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        alert("Debes iniciar sesión para publicar en la comunidad.");
+        alert("Debes iniciar sesión para publicar.");
         return;
       }
 
@@ -141,10 +148,20 @@ export default function ComunidadExplorarPage() {
 
       setModalAbierto(false);
       setNuevoDebate({ pregunta: "", tag: "Debate Clínico" });
-      cargarDatos();
-    } catch (error) {
-      console.error("Error al publicar:", error);
-      alert("Hubo un error al publicar tu debate.");
+
+      // Simular la inserción local para no recargar todo
+      const nuevoPostFront = {
+        id: Date.now().toString(),
+        titulo: nuevoDebate.tag,
+        contenido: nuevoDebate.pregunta,
+        creado_el: new Date().toISOString(),
+        perfil_psicologo: { nombre_completo: "Tú (Profesional)" },
+      };
+      setConversaciones((prev) => [nuevoPostFront, ...prev]);
+    } catch (error: unknown) {
+      alert(
+        error instanceof Error ? error.message : "Error al publicar tu debate.",
+      );
     } finally {
       setPublicando(false);
     }
@@ -228,7 +245,13 @@ export default function ComunidadExplorarPage() {
         </div>
       </section>
 
-      {/* 🟢 SECCIÓN DE LECTURAS (Dinamikoon a naggapu iti DB) */}
+      {errorBD && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl font-bold mb-6 border border-red-200 text-sm">
+          🚨 {errorBD}
+        </div>
+      )}
+
+      {/* 🟢 ARTÍCULOS */}
       <section>
         <div className="flex justify-between items-end mb-8">
           <div>
@@ -242,9 +265,9 @@ export default function ComunidadExplorarPage() {
         </div>
 
         {articulos.length === 0 ? (
-          <div className="text-center py-10 bg-white rounded-3xl border border-slate-100">
+          <div className="text-center py-10 bg-white rounded-3xl border border-slate-100 shadow-sm">
             <p className="text-slate-500 font-medium">
-              Nuevos artículos próximamente.
+              No hay artículos publicados aún.
             </p>
           </div>
         ) : (
@@ -255,7 +278,7 @@ export default function ComunidadExplorarPage() {
                 className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 group flex flex-col sm:flex-row gap-6 cursor-pointer"
               >
                 <div
-                  className={`w-full sm:w-40 h-48 sm:h-auto rounded-2xl ${art.imagen_color || "bg-slate-100"} shrink-0`}
+                  className={`w-full sm:w-40 h-48 sm:h-auto rounded-2xl ${art.imagen_color || "bg-indigo-100"} shrink-0`}
                 ></div>
                 <div className="flex flex-col flex-1 py-1">
                   <span className="text-xs font-black text-indigo-600 uppercase tracking-wider mb-2">
@@ -289,6 +312,7 @@ export default function ComunidadExplorarPage() {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* 🟢 TALLERES */}
         <section className="lg:col-span-1 bg-slate-50 rounded-4xl p-8 border border-slate-100 h-fit">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-xl font-black text-slate-900">
@@ -309,17 +333,12 @@ export default function ComunidadExplorarPage() {
                 >
                   <div className="flex justify-between items-start mb-3">
                     <span className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-md">
-                      {new Date(evento.fecha_hora).toLocaleDateString("es-ES", {
-                        day: "numeric",
-                        month: "short",
-                      })}
+                      {evento.fecha}
                     </span>
                     <span
-                      className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-md ${Number(evento.precio) === 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                      className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-md ${evento.precio === "Gratuito" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
                     >
-                      {Number(evento.precio) === 0
-                        ? "Gratuito"
-                        : `$${evento.precio}`}
+                      {evento.precio}
                     </span>
                   </div>
                   <h3 className="font-bold text-slate-900 leading-tight mb-2 group-hover:text-indigo-600 transition-colors">
@@ -335,6 +354,7 @@ export default function ComunidadExplorarPage() {
           </div>
         </section>
 
+        {/* 🟢 MURO / DEBATES */}
         <section className="lg:col-span-2">
           <div className="flex justify-between items-end mb-8">
             <div>

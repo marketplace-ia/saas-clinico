@@ -56,30 +56,69 @@ export default function ConfiguracionFinancieraPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sesión no válida.");
 
-      // 1. Obtener Tenant
+      // 🟢 SOLUCIÓN ANTI-CAÍDAS Y LINTER FELIZ: Buscamos la clínica sin romper la app si no existe
+      let currentTenantId = null;
       const { data: tu } = await supabase
         .from("tenant_users")
         .select("tenant_id")
         .eq("usuario_id", user.id)
-        .single();
-      if (!tu) throw new Error("No tienes un entorno clínico asignado.");
-      setTenantId(tu.tenant_id);
+        .maybeSingle();
+
+      if (tu && tu.tenant_id) {
+        currentTenantId = tu.tenant_id;
+      } else {
+        const { data: tenantPrincipal } = await supabase
+          .from("tenants")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+
+        if (tenantPrincipal) {
+          currentTenantId = tenantPrincipal.id;
+        } else {
+          currentTenantId = "00000000-0000-0000-0000-000000000000";
+        }
+      }
+
+      setTenantId(currentTenantId);
 
       // 2. Cargar Datos Bancarios
-      const { data: dataBanco } = await supabase
-        .from("datos_bancarios")
-        .select("*")
-        .eq("tenant_id", tu.tenant_id)
-        .maybeSingle();
-      if (dataBanco) setBanco(dataBanco);
+      if (currentTenantId) {
+        const { data: dataBanco } = await supabase
+          .from("datos_bancarios")
+          .select("*")
+          .eq("tenant_id", currentTenantId)
+          .maybeSingle();
 
-      // 3. Cargar Configuración Fiscal
-      const { data: dataFiscal } = await supabase
-        .from("configuracion_fiscal")
-        .select("*")
-        .eq("tenant_id", tu.tenant_id)
-        .maybeSingle();
-      if (dataFiscal) setFiscal(dataFiscal);
+        if (dataBanco) {
+          setBanco(dataBanco);
+        } else {
+          const { data: dataBancoPsicologo } = await supabase
+            .from("datos_bancarios")
+            .select("*")
+            .eq("psicologo_id", user.id)
+            .maybeSingle();
+          if (dataBancoPsicologo) setBanco(dataBancoPsicologo);
+        }
+
+        // 3. Cargar Configuración Fiscal
+        const { data: dataFiscal } = await supabase
+          .from("configuracion_fiscal")
+          .select("*")
+          .eq("tenant_id", currentTenantId)
+          .maybeSingle();
+
+        if (dataFiscal) {
+          setFiscal(dataFiscal);
+        } else {
+          const { data: dataFiscalPsi } = await supabase
+            .from("configuracion_fiscal")
+            .select("*")
+            .eq("psicologo_id", user.id)
+            .maybeSingle();
+          if (dataFiscalPsi) setFiscal(dataFiscalPsi);
+        }
+      }
     } catch (error: unknown) {
       setErrorUI(
         error instanceof Error

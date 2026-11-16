@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 
 interface Doctor {
   psicologo_id: string;
-  nombre_comercial: string;
-  precio_consulta: number;
+  nombres: string;
+  apellidos: string;
+  especialidad: string;
+  precio_consulta?: number; // Opcional, por si lo agregas después
 }
 
 export default function AgendarCitaPage() {
@@ -48,11 +50,17 @@ export default function AgendarCitaPage() {
         });
       }
 
+      // 🟢 CORRECCIÓN: Buscamos nombres, apellidos y especialidad reales
       const { data: perfiles, error } = await supabase
         .from("perfil_psicologo")
-        .select("psicologo_id, nombre_comercial, precio_consulta");
+        .select("psicologo_id, nombres, apellidos, especialidad")
+        .eq("estado_verificacion", "aprobado"); // Solo mostramos psicólogos verificados
 
-      if (perfiles && !error) setDoctoresDisponibles(perfiles);
+      if (perfiles && !error) {
+        setDoctoresDisponibles(perfiles);
+      } else {
+        console.error("Error al cargar psicólogos:", error);
+      }
     };
 
     cargarDatosIniciales();
@@ -75,7 +83,6 @@ export default function AgendarCitaPage() {
         return;
       }
 
-      // 🟢 CORRECCIÓN VISUAL: BuscarCualquier cita que no esté formalmente cancelada
       const { data, error } = await supabase
         .from("citas")
         .select("hora_inicio")
@@ -96,7 +103,6 @@ export default function AgendarCitaPage() {
         });
 
         setHorasOcupadas(horasTomadas);
-        // Si el paciente tenía seleccionada una hora que acaba de ser ocupada, la deseleccionamos
         if (horasTomadas.includes(cita.hora))
           setCita((prev) => ({ ...prev, hora: "" }));
       }
@@ -152,7 +158,6 @@ export default function AgendarCitaPage() {
       }, 2000);
     } catch (error: unknown) {
       const msj = error instanceof Error ? error.message : "Error desconocido";
-      // Si salta el error 409 (Dobles reservas), lo mostramos en rojo y forzamos a elegir otra hora
       setMensaje({ tipo: "error", texto: msj });
       setCita((prev) => ({ ...prev, hora: "" }));
       setPaso(2);
@@ -229,8 +234,8 @@ export default function AgendarCitaPage() {
                 <option value="">Selecciona un especialista</option>
                 {doctoresDisponibles.map((doc) => (
                   <option key={doc.psicologo_id} value={doc.psicologo_id}>
-                    {doc.nombre_comercial || "Especialista sin nombre"} - $
-                    {(doc.precio_consulta || 50).toFixed(2)} / sesión
+                    Ps. {doc.nombres} {doc.apellidos} -{" "}
+                    {doc.especialidad || "Psicología General"}
                   </option>
                 ))}
               </select>
@@ -335,7 +340,9 @@ export default function AgendarCitaPage() {
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
               <span className="text-slate-400 font-medium">Especialista</span>
               <span className="font-bold text-right pl-4">
-                {doctorSeleccionado?.nombre_comercial || "No especificado"}
+                {doctorSeleccionado
+                  ? `Ps. ${doctorSeleccionado.nombres} ${doctorSeleccionado.apellidos}`
+                  : "No especificado"}
               </span>
             </div>
             <div className="flex justify-between items-center border-b border-white/10 pb-4">

@@ -46,21 +46,25 @@ export default function HistoriasPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
+      // 🟢 CORRECCIÓN: Usamos maybeSingle() para no lanzar un error 406 si no existe
       const { data: tu } = await supabase
         .from("tenant_users")
         .select("tenant_id")
         .eq("usuario_id", session.user.id)
-        .single();
-      if (!tu) throw new Error("No tienes clínica asignada");
+        .maybeSingle();
 
-      const { data: dataPacientes } = await supabase
-        .from("pacientes")
-        .select("id, nombres, apellidos")
-        .eq("tenant_id", tu.tenant_id)
-        .order("apellidos");
+      // Si no tiene clínica (Tenant), simplemente no cargamos historias ni pacientes, pero NO rompemos la app
+      if (tu) {
+        const { data: dataPacientes } = await supabase
+          .from("pacientes")
+          .select("id, nombres, apellidos")
+          .eq("tenant_id", tu.tenant_id)
+          .order("apellidos");
 
-      if (dataPacientes) setListaPacientes(dataPacientes);
+        if (dataPacientes) setListaPacientes(dataPacientes);
+      }
 
+      // Cargamos las historias usando el ID del psicólogo (esto funciona incluso sin Tenant)
       const { data: dataHistorias, error } = await supabase
         .from("historias_clinicas")
         .select(`*, pacientes(nombres, apellidos)`)
@@ -76,7 +80,6 @@ export default function HistoriasPage() {
     }
   }, []);
 
-  // 🟢 NASIMPA: Async wrapper tapno maliklikan ti biddut ti ESLint
   useEffect(() => {
     const inicializar = async () => {
       await cargarDatos();
@@ -102,15 +105,24 @@ export default function HistoriasPage() {
       } = await supabase.auth.getSession();
       if (!session) return;
 
+      // 🟢 CORRECCIÓN AL GUARDAR: Validamos educadamente si falta la clínica
       const { data: tu } = await supabase
         .from("tenant_users")
         .select("tenant_id")
         .eq("usuario_id", session.user.id)
-        .single();
+        .maybeSingle();
+
+      if (!tu) {
+        alert(
+          "Tu cuenta aún está siendo verificada. No tienes una clínica asignada para guardar expedientes.",
+        );
+        setGuardando(false);
+        return;
+      }
 
       const { error } = await supabase.from("historias_clinicas").insert([
         {
-          tenant_id: tu?.tenant_id,
+          tenant_id: tu.tenant_id,
           psicologo_id: session.user.id,
           paciente_id: nuevaHistoria.paciente_id,
           motivo_consulta: nuevaHistoria.motivo_consulta,

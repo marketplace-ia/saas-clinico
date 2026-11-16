@@ -19,7 +19,6 @@ export default function DashboardPsicologoLayout({
   const [cargando, setCargando] = useState(true);
   const [estadoValidacion, setEstadoValidacion] = useState<string | null>(null);
   const [tieneDocs, setTieneDocs] = useState(false);
-
   const [estadoSaaS, setEstadoSaaS] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,18 +27,35 @@ export default function DashboardPsicologoLayout({
         const {
           data: { session },
         } = await supabase.auth.getSession();
+
         if (!session) {
           router.push("/login");
           return;
         }
 
+        // ==========================================
+        // 🟢 EL PASE VIP PARA EL TOUR INTERACTIVO
+        // Si es el usuario de demostración, saltamos todas las barreras.
+        // ==========================================
+        if (session.user.email === "demo@clinesfera.com") {
+          setTieneDocs(true);
+          setEstadoValidacion("aprobado");
+          setEstadoSaaS("active");
+          setCargando(false);
+          return; // Detenemos la ejecución aquí para que no busque documentos reales
+        }
+
+        // ==========================================
+        // FLUJO DE SEGURIDAD REAL PARA PSICÓLOGOS
+        // ==========================================
         const { data: perfil, error: perfilError } = await supabase
           .from("perfil_psicologo")
           .select("estado_verificacion, url_documento")
-          .eq("id", session.user.id)
+          .eq("psicologo_id", session.user.id)
           .single();
 
-        if (perfilError) {
+        if (perfilError && perfilError.code !== "PGRST116") {
+          console.error("Error crítico de BD en Layout:", perfilError);
           setEstadoValidacion("pendiente");
           setTieneDocs(false);
         } else if (perfil) {
@@ -64,9 +80,12 @@ export default function DashboardPsicologoLayout({
               if (sub) setEstadoSaaS(sub.estado);
             }
           }
+        } else {
+          setEstadoValidacion("pendiente");
+          setTieneDocs(false);
         }
       } catch (error) {
-        console.error("Error validando acceso:", error);
+        console.error("Error validando acceso general:", error);
       } finally {
         setCargando(false);
       }
@@ -91,6 +110,7 @@ export default function DashboardPsicologoLayout({
     );
   }
 
+  // 1. EL PSICÓLOGO AÚN NO HA SUBIDO DOCUMENTOS
   if (!tieneDocs) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
@@ -136,6 +156,7 @@ export default function DashboardPsicologoLayout({
     );
   }
 
+  // 2. EL PSICÓLOGO SUBIÓ DOCS PERO EL SUPERADMIN AÚN NO LO APRUEBA
   if (estadoValidacion === "pendiente") {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
@@ -163,7 +184,8 @@ export default function DashboardPsicologoLayout({
           </h2>
           <p className="text-slate-500 font-medium mb-6 leading-relaxed">
             Su documentación ha sido recibida. Nuestro departamento se encuentra
-            validando su registro.
+            validando su registro. Le notificaremos cuando su cuenta esté
+            activa.
           </p>
           <button
             onClick={cerrarSesion}
@@ -176,6 +198,7 @@ export default function DashboardPsicologoLayout({
     );
   }
 
+  // 3. EL SUPERADMIN RECHAZÓ EL PERFIL
   if (estadoValidacion === "rechazado") {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
@@ -185,7 +208,7 @@ export default function DashboardPsicologoLayout({
           </h2>
           <p className="text-slate-500 font-medium mb-6">
             No pudimos validar su registro profesional. Por favor contacte a
-            soporte técnico.
+            soporte técnico para resolver este inconveniente.
           </p>
           <button
             onClick={cerrarSesion}
@@ -198,6 +221,7 @@ export default function DashboardPsicologoLayout({
     );
   }
 
+  // 4. EL DOCTOR ESTÁ APROBADO, PERO NO HA PAGADO
   const esRutaLibre = [
     "/dashboard-psicologo/suscripcion",
     "/dashboard-psicologo/pagos",
@@ -243,12 +267,12 @@ export default function DashboardPsicologoLayout({
     );
   }
 
+  // 5. FLUJO PERFECTO
   return (
     <AssistantProvider userRole="psicologo">
       <div className="min-h-screen bg-slate-50 flex">
         <SidebarPsicologo />
         <main className="flex-1 ml-64 min-h-screen overflow-y-auto bg-slate-50 relative">
-          {/* 🟢 CORRECCIÓN TAILWIND: Eliminado 'relative', se mantiene solo 'sticky' */}
           {estadoSaaS === "grace_period" && (
             <div className="bg-amber-500 text-amber-950 font-bold text-sm py-2 px-6 flex justify-between items-center z-40 sticky top-0">
               <span className="flex items-center gap-2">

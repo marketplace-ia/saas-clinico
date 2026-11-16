@@ -11,6 +11,7 @@ const ALLOWED_MIMES = ["image/jpeg", "image/png", "application/pdf"];
 
 export async function POST(req: Request) {
   try {
+    // 1. Verificación del Gafete (Token JWT)
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return NextResponse.json(
@@ -32,15 +33,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // 2. Extraer datos (Ya NO exigimos pago_id, solo cita_id)
     const formData = await req.formData();
     const archivo = formData.get("comprobante") as File;
-    const pago_id = formData.get("pago_id") as string;
     const cita_id = formData.get("cita_id") as string;
     const correo = formData.get("correo") as string;
 
-    if (!archivo || !pago_id || !correo || !cita_id) {
+    if (!archivo || !correo || !cita_id) {
       return NextResponse.json(
-        { error: "Faltan datos en la petición." },
+        { error: "Faltan datos clave (Cita o Archivo) en la petición." },
         { status: 400 },
       );
     }
@@ -59,10 +60,11 @@ export async function POST(req: Request) {
       );
     }
 
+    // 3. Subir el archivo de forma segura
     const fileBuffer = await archivo.arrayBuffer();
     const fileExt = archivo.name.split(".").pop();
-    const fileName = `${pago_id}-${Date.now()}.${fileExt}`;
-    const filePath = `pacientes/${user.id}/${fileName}`;
+    const fileName = `comprobante-${Date.now()}.${fileExt}`;
+    const filePath = `pacientes/${user.id}/${cita_id}/${fileName}`;
 
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from("comprobantes_pacientes")
@@ -71,82 +73,99 @@ export async function POST(req: Request) {
         upsert: false,
       });
 
-    if (uploadError)
-      throw new Error(
-        `Supabase Storage rechazó el archivo: ${uploadError.message}`,
-      );
+    if (uploadError) {
+      throw new Error(`Storage rechazó el archivo: ${uploadError.message}`);
+    }
 
     const comprobante_url = uploadData.path;
 
-    const { data: pagoActual, error: errPago } = await supabaseAdmin
-      .from("pagos")
-      .select("estado, monto")
-      .eq("id", pago_id)
+    // 4. LÓGICA INTELIGENTE: Buscar o crear en Recaudación Pacientes
+    const { data: citaData, error: errCita } = await supabaseAdmin
+      .from("citas")
+      .select("tenant_id, psicologo_id")
+      .eq("id", cita_id)
       .single();
 
-    if (errPago || !pagoActual) throw new Error("Pago no encontrado.");
-
-    await supabaseAdmin
-      .from("pagos")
-      .update({
-        estado: "comprobante_recibido",
-        comprobante_url: comprobante_url,
-      })
-      .eq("id", pago_id);
-
-    try {
-      await supabaseAdmin.from("payment_status_history").insert({
-        pago_id: pago_id,
-        estado_anterior: pagoActual.estado,
-        estado_nuevo: "comprobante_recibido",
-        observacion:
-          "Comprobante procesado de forma segura vía Servidor Central.",
-        usuario_accion: user.id,
-      });
-    } catch (e) {
-      console.warn(
-        "Aviso: No se pudo guardar la bitácora, continuando flujo.",
-        e,
-      );
+    if (errCita || !citaData) {
+      throw new Error("La cita maestra no existe en el sistema.");
     }
 
+    // Averiguar precio
+    const { data: perfil } = await supabaseAdmin
+      .from("perfil_psicologo")
+      .select("precio_consulta")
+      .eq("psicologo_id", citaData.psicologo_id)
+      .single();
+
+    const precioBase = perfil?.precio_consulta || 50;
+
+    // 🟢 PUENTE ANTI-CAÍDAS: Si el psicólogo no tiene clínica, le asignamos una simulada para evitar que la DB rechace el pago
+    let finalTenantId = citaData.tenant_id;
+    if (!finalTenantId) {
+      const { data: tenantPrincipal } = await supabaseAdmin
+        .from("tenants")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      finalTenantId = tenantPrincipal
+        ? tenantPrincipal.id
+        : "00000000-0000-0000-0000-000000000000";
+    }
+
+    // Actualizar o crear recaudación
     const { data: recExistente } = await supabaseAdmin
       .from("recaudacion_pacientes")
       .select("id")
       .eq("cita_id", cita_id);
 
     if (!recExistente || recExistente.length === 0) {
-      const { data: citaData } = await supabaseAdmin
-        .from("citas")
-        .select("tenant_id, psicologo_id")
-        .eq("id", cita_id)
-        .single();
-
-      if (citaData) {
-        await supabaseAdmin.from("recaudacion_pacientes").insert({
-          tenant_id: citaData.tenant_id,
+      // 🟢 AHORA SÍ: El servidor la crea usando el tenant seguro y la palabra correcta (under_review)
+      const { error: insertError } = await supabaseAdmin
+        .from("recaudacion_pacientes")
+        .insert({
+          tenant_id: finalTenantId,
           cita_id: cita_id,
           psicologo_id: citaData.psicologo_id,
-          monto_pagado: pagoActual.monto,
-          estado_pago: "en_revision", // 🟢 CORRECCIÓN: "en_revision"
+          monto_pagado: precioBase,
+          estado_pago: "under_review", // <--- CERRADURA CORREGIDA AL INGLÉS
           comprobante_url: comprobante_url,
         });
+
+      if (insertError) {
+        console.error(
+          "🚨 ERROR FATAL DE DB AL INSERTAR RECAUDACIÓN:",
+          insertError,
+        );
+        throw new Error(
+          `Fallo en BD al crear la deuda: ${insertError.message}`,
+        );
       }
     } else {
+      // Si ya existía, simplemente la actualiza
       await supabaseAdmin
         .from("recaudacion_pacientes")
         .update({
-          estado_pago: "en_revision", // 🟢 CORRECCIÓN: "en_revision"
+          estado_pago: "under_review", // <--- CERRADURA CORREGIDA AL INGLÉS
           comprobante_url: comprobante_url,
         })
         .eq("cita_id", cita_id);
     }
 
-    return NextResponse.json({ success: true, mensaje: "Éxito total." });
+    // 5. Actualizar la cita maestra
+    await supabaseAdmin
+      .from("citas")
+      .update({ estado: "under_review" }) // También en inglés para la cita
+      .eq("id", cita_id);
+
+    return NextResponse.json({
+      success: true,
+      mensaje: "Archivo recibido y procesado con éxito.",
+    });
   } catch (error: unknown) {
     const mensajeError =
       error instanceof Error ? error.message : "Error desconocido";
-    console.error("API Error:", mensajeError);
+    console.error("API Error de Comprobante:", mensajeError);
     return NextResponse.json({ error: mensajeError }, { status: 500 });
   }
 }

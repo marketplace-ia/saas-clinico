@@ -16,6 +16,8 @@ interface AuthTranslation {
   error: string;
   or: string;
   googleBtn: string;
+  forgot: string;
+  staffError: string; // 🟢 Aviso para personal clínico
 }
 
 const translations: Record<LangType, AuthTranslation> = {
@@ -30,6 +32,9 @@ const translations: Record<LangType, AuthTranslation> = {
     error: "Error al iniciar sesión.",
     or: "O ingresa con",
     googleBtn: "Continuar con Google",
+    forgot: "¿Olvidaste tu contraseña?",
+    staffError:
+      "Esta entrada es solo para pacientes. Usa el Acceso Administrativo.",
   },
   en: {
     title: "Log In",
@@ -42,6 +47,9 @@ const translations: Record<LangType, AuthTranslation> = {
     error: "Error logging in.",
     or: "Or log in with",
     googleBtn: "Continue with Google",
+    forgot: "Forgot your password?",
+    staffError:
+      "This portal is for patients. Please use Administrative Access.",
   },
   zh: {
     title: "登录",
@@ -54,6 +62,8 @@ const translations: Record<LangType, AuthTranslation> = {
     error: "登录时出错。",
     or: "或使用以下方式登录",
     googleBtn: "使用 Google 继续",
+    forgot: "忘记密码？",
+    staffError: "此入口仅面向患者，请使用管理访问。",
   },
   hi: {
     title: "लॉग इन करें",
@@ -66,6 +76,9 @@ const translations: Record<LangType, AuthTranslation> = {
     error: "लॉग इन करने में त्रुटि।",
     or: "या इसके साथ लॉग इन करें",
     googleBtn: "Google के साथ जारी रखें",
+    forgot: "क्या आप अपना पासवर्ड भूल गए?",
+    staffError:
+      "यह पोर्टल मरीजों के लिए है। कृपया प्रशासनिक पहुँच का उपयोग करें।",
   },
   fr: {
     title: "Connexion",
@@ -78,6 +91,9 @@ const translations: Record<LangType, AuthTranslation> = {
     error: "Erreur de connexion.",
     or: "Ou connectez-vous avec",
     googleBtn: "Continuer avec Google",
+    forgot: "Mot de passe oublié ?",
+    staffError:
+      "Ce portail est réservé aux patients. Utilisez l'accès administratif.",
   },
   ar: {
     title: "تسجيل الدخول",
@@ -90,6 +106,8 @@ const translations: Record<LangType, AuthTranslation> = {
     error: "خطأ في تسجيل الدخول.",
     or: "أو سجل دخولك باستخدام",
     googleBtn: "المتابعة باستخدام Google",
+    forgot: "هل نسيت كلمة المرور؟",
+    staffError: "هذا الدخول للمرضى فقط. يرجى استخدام الوصول الإداري.",
   },
 };
 
@@ -109,17 +127,14 @@ export default function LoginPage() {
 
       setCargando(true);
 
-      // 1. Detectar si el usuario viene de la comunidad (Ruta de retorno)
       const searchParams = new URLSearchParams(window.location.search);
       const returnTo = searchParams.get("returnTo");
 
-      // 2. PUERTA VIP PARA EL ADMINISTRADOR
       if (userEmail === "pinedaesteban535@gmail.com") {
         window.location.href = returnTo || "/admin/verificaciones";
         return;
       }
 
-      // 3. ENRUTAMIENTO INTELIGENTE
       try {
         const { data } = await supabase
           .from("roles_usuarios")
@@ -127,20 +142,24 @@ export default function LoginPage() {
           .eq("correo", userEmail)
           .maybeSingle();
 
-        let rutaDestino = "/dashboard-paciente";
-
-        if (data && data.rol) {
-          if (data.rol === "psicologo") rutaDestino = "/dashboard-psicologo";
-          else if (data.rol === "secretaria")
-            rutaDestino = "/dashboard-secretaria";
+        // 🟢 EL GUARDIÁN DE PACIENTES: Bloquea a Psicólogos y Secretarias
+        if (
+          data &&
+          data.rol &&
+          (data.rol === "psicologo" || data.rol === "secretaria")
+        ) {
+          await supabase.auth.signOut();
+          setError(t.staffError);
+          setCargando(false);
+          return;
         }
 
-        // Si el usuario inició sesión desde un lugar específico (ej. Comunidad), se queda ahí.
+        let rutaDestino = "/dashboard-paciente";
+
         if (returnTo && returnTo.startsWith("/")) {
           rutaDestino = returnTo;
         }
 
-        // Navegación forzada para evitar bloqueos del caché de Next.js
         window.location.href = rutaDestino;
       } catch (e) {
         console.error("Error validando rol:", e);
@@ -148,12 +167,10 @@ export default function LoginPage() {
       }
     };
 
-    // Revisar si ya hay sesión al cargar
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) enrutarUsuario(session);
     });
 
-    // Escuchar el login
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -163,7 +180,7 @@ export default function LoginPage() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [t.staffError]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,6 +240,7 @@ export default function LoginPage() {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex justify-center">
+          {/* 🟢 CORRECCIÓN LINTER: Actualizado a sintaxis Tailwind V4 (bg-linear-to-br) */}
           <div className="w-12 h-12 bg-linear-to-br from-indigo-500 to-teal-400 text-white rounded-xl flex items-center justify-center font-bold text-2xl shadow-lg">
             Ψ
           </div>
@@ -263,9 +281,17 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-gray-300 mb-2">
-                {t.pass}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-bold text-slate-700 dark:text-gray-300">
+                  {t.pass}
+                </label>
+                <Link
+                  href="/recuperar"
+                  className="text-sm font-bold text-indigo-600 dark:text-teal-400 hover:text-indigo-500 transition-colors"
+                >
+                  {t.forgot}
+                </Link>
+              </div>
               <input
                 type="password"
                 required

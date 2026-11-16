@@ -1,8 +1,11 @@
 // src/app/api/billing/emitir/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { FactuplanAdapter } from "@/lib/billing/FactuplanAdapter";
-import { InvoicePayload } from "@/lib/billing/BillingProvider";
+// 🟢 CORRECCIÓN: Ahora importamos ambas piezas del lugar correcto
+import {
+  FactuplanAdapter,
+  InvoicePayload,
+} from "@/lib/billing/FactuplanAdapter";
 
 // Inicializamos el cliente de Supabase con Service Role (Solo para backend)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -106,7 +109,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 🟢 CORRECCIÓN: Nombres y Direcciones dinámicos para evitar descuadres contables
     const conceptoFactura =
       pago.entidad_tipo === "cita"
         ? "Consulta Psicológica"
@@ -114,8 +116,6 @@ export async function POST(request: Request) {
           ? "Inscripción Taller"
           : "Servicio Profesional";
 
-    // 🟢 CORRECCIÓN ESLINT DEFINITIVA:
-    // Usamos Record<string, unknown> en lugar de 'any' para un tipado seguro en TypeScript
     const pacienteSeguro = paciente as Record<string, unknown>;
     const direccionPaciente =
       typeof pacienteSeguro?.direccion === "string"
@@ -171,7 +171,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 🟢 MAGIA ANTI-TRIGGER: Generamos el ID Único nosotros mismos
     const facturaGeneradaId = crypto.randomUUID();
 
     // 6. Guardar en Base de Datos inyectando explícitamente el ID
@@ -199,8 +198,6 @@ export async function POST(request: Request) {
       mensaje: "Documento enviado al proveedor correctamente.",
       estado: resultado.estado_sri,
     });
-
-    // 🟢 CORRECCIÓN ESLINT: Reemplazado `error: any` por `error: unknown`
   } catch (error: unknown) {
     const msgError =
       error instanceof Error ? error.message : "Error desconocido";
