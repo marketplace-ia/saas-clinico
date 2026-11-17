@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 
-// Interfaz para agrupar las rutas semánticamente
 interface MenuSection {
   title: string;
   items: MenuItem[];
@@ -13,7 +12,6 @@ interface MenuSection {
 interface MenuItem {
   name: string;
   path: string;
-  // 🟢 CORRECCIÓN DE TYPESCRIPT: Usamos React.ReactNode en lugar de JSX.Element
   icon: React.ReactNode;
   badge?: string;
 }
@@ -22,7 +20,6 @@ export default function SidebarPsicologo() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Función para cerrar sesión y redirigir
   const cerrarSesion = async () => {
     try {
       await supabase.auth.signOut();
@@ -32,7 +29,6 @@ export default function SidebarPsicologo() {
     }
   };
 
-  // 🟢 ESTRUCTURA PREMIUM: Rutas agrupadas por contexto
   const menuSections: MenuSection[] = [
     {
       title: "Clínica",
@@ -97,6 +93,44 @@ export default function SidebarPsicologo() {
         {
           name: "Historias Clínicas",
           path: "/dashboard-psicologo/historias",
+          icon: (
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+          ),
+        },
+        {
+          name: "Formato Fichas",
+          path: "/dashboard-psicologo/constructor-historias",
+          icon: (
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+              />
+            </svg>
+          ),
+        },
+        {
+          name: "Consentimientos",
+          path: "/dashboard-psicologo/consentimientos",
           icon: (
             <svg
               className="w-5 h-5"
@@ -323,7 +357,6 @@ export default function SidebarPsicologo() {
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 h-screen flex flex-col fixed left-0 top-0 z-40 shadow-xs">
-      {/* LOGO Y MARCA */}
       <div className="p-6 flex items-center gap-3 shrink-0 border-b border-slate-100/60">
         <div className="w-9 h-9 bg-linear-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md shadow-indigo-200">
           C
@@ -333,7 +366,6 @@ export default function SidebarPsicologo() {
         </span>
       </div>
 
-      {/* NAVEGACIÓN AGRUPADA */}
       <nav className="flex-1 overflow-y-auto py-4 flex flex-col px-4 hide-scrollbar">
         {menuSections.map((section, index) => (
           <div key={section.title} className={index > 0 ? "mt-6" : ""}>
@@ -374,7 +406,6 @@ export default function SidebarPsicologo() {
         ))}
       </nav>
 
-      {/* BOTÓN COMUNIDAD & CERRAR SESIÓN */}
       <div className="p-4 border-t border-slate-100 shrink-0 bg-slate-50/50 flex flex-col gap-2">
         <Link
           href="/comunidad"

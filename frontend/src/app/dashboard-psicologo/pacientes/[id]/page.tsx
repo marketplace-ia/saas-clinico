@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../../../../lib/supabase";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { CampoDinamico } from "../../constructor-historias/page"; // Reutilizamos los tipos
 
 interface Paciente {
   id: string;
@@ -21,14 +22,6 @@ interface NotaEvolucion {
   contenido: string;
 }
 
-interface Anamnesis {
-  id: string;
-  motivo_consulta: string | null;
-  antecedentes_medicos: string | null;
-  antecedentes_familiares: string | null;
-  historia_personal: string | null;
-}
-
 interface DocumentoClinico {
   id: string;
   storage_path: string;
@@ -44,7 +37,6 @@ export default function FichaPacientePage() {
 
   const [paciente, setPaciente] = useState<Paciente | null>(null);
   const [historiaBase, setHistoriaBase] = useState<{ id: string } | null>(null);
-  const [anamnesis, setAnamnesis] = useState<Anamnesis | null>(null);
 
   const [cargando, setCargando] = useState(true);
   const [errorUI, setErrorUI] = useState<string | null>(null);
@@ -64,15 +56,6 @@ export default function FichaPacientePage() {
     plan: "",
   });
 
-  const [editandoAnamnesis, setEditandoAnamnesis] = useState(false);
-  const [guardandoAnamnesis, setGuardandoAnamnesis] = useState(false);
-  const [formAnamnesis, setFormAnamnesis] = useState({
-    motivo_consulta: "",
-    antecedentes_personales: "",
-    antecedentes_familiares: "",
-    historia_personal: "",
-  });
-
   const [documentos, setDocumentos] = useState<DocumentoClinico[]>([]);
   const [cargandoDocs, setCargandoDocs] = useState(false);
   const [subiendoDoc, setSubiendoDoc] = useState(false);
@@ -80,6 +63,23 @@ export default function FichaPacientePage() {
     url: string;
     tipo: string;
   } | null>(null);
+
+  // ==========================================
+  // 🟢 ESTADOS DEL MOTOR DINÁMICO
+  // ==========================================
+  const [plantillaDinamica, setPlantillaDinamica] = useState<{
+    id: string;
+    titulo: string;
+    campos: CampoDinamico[];
+  } | null>(null);
+  const [respuestasDinamicas, setRespuestasDinamicas] = useState<
+    Record<string, string | boolean | string[]>
+  >({});
+  const [idHistoriaDinamica, setIdHistoriaDinamica] = useState<string | null>(
+    null,
+  );
+  const [editandoHistoria, setEditandoHistoria] = useState(false);
+  const [guardandoHistoria, setGuardandoHistoria] = useState(false);
 
   useEffect(() => {
     const inicializarFecha = async () => {
@@ -112,12 +112,12 @@ export default function FichaPacientePage() {
       if (errPaciente) throw new Error("Paciente no encontrado o sin acceso.");
       setPaciente(dataPaciente);
 
+      // Cargar Historia Clínica Base (Para Notas SOAP)
       const resHistoria = await supabase
         .from("historias_clinicas")
         .select("id")
         .eq("paciente_id", pacienteId)
         .maybeSingle();
-
       let hBase = resHistoria.data;
       if (!hBase && !resHistoria.error) {
         const { data: tu } = await supabase
@@ -138,30 +138,38 @@ export default function FichaPacientePage() {
       }
       setHistoriaBase(hBase);
 
-      const resAnamnesis = await supabase
-        .from("anamnesis")
+      // ==========================================
+      // 🟢 CARGAR MOTOR DINÁMICO
+      // ==========================================
+      // 1. Buscamos si el psicólogo diseñó una plantilla
+      const { data: plantilla } = await supabase
+        .from("plantillas_historias")
         .select("*")
-        .eq("paciente_id", pacienteId)
+        .eq("creador_id", user.id)
+        .eq("rol", "psicologo")
         .maybeSingle();
 
-      let dataAnamnesis = resAnamnesis.data;
-      if (!dataAnamnesis && !resAnamnesis.error) {
-        const { data: nuevaAnamnesis } = await supabase
-          .from("anamnesis")
-          .insert({ paciente_id: pacienteId, psicologo_id: user.id })
-          .select()
-          .single();
-        dataAnamnesis = nuevaAnamnesis;
-      }
-
-      if (dataAnamnesis) {
-        setAnamnesis(dataAnamnesis);
-        setFormAnamnesis({
-          motivo_consulta: dataAnamnesis.motivo_consulta || "",
-          antecedentes_personales: dataAnamnesis.antecedentes_medicos || "",
-          antecedentes_familiares: dataAnamnesis.antecedentes_familiares || "",
-          historia_personal: dataAnamnesis.historia_personal || "",
+      if (plantilla) {
+        setPlantillaDinamica({
+          id: plantilla.id,
+          titulo: plantilla.titulo,
+          campos: Array.isArray(plantilla.campos_json)
+            ? plantilla.campos_json
+            : [],
         });
+
+        // 2. Buscamos si el paciente ya tiene esta historia llena
+        const { data: historiaLlena } = await supabase
+          .from("historias_dinamicas_pacientes")
+          .select("*")
+          .eq("paciente_id", pacienteId)
+          .eq("plantilla_id", plantilla.id)
+          .maybeSingle();
+
+        if (historiaLlena) {
+          setIdHistoriaDinamica(historiaLlena.id);
+          setRespuestasDinamicas(historiaLlena.respuestas_json || {});
+        }
       }
     } catch (error: unknown) {
       setErrorUI(error instanceof Error ? error.message : "Error interno");
@@ -179,7 +187,6 @@ export default function FichaPacientePage() {
         .select("*")
         .eq("historia_clinica_id", historiaBase.id)
         .order("creado_en", { ascending: false });
-
       if (error) throw error;
 
       const notasFormateadas = (data || []).map((d) => ({
@@ -188,7 +195,6 @@ export default function FichaPacientePage() {
         contenido:
           `${d.motivo_sesion || ""}\n\n${d.respuesta_paciente || ""}\n\n${d.intervencion_tecnicas || ""}`.trim(),
       }));
-
       setNotas(notasFormateadas);
     } catch (error) {
       console.error("Error notas:", error);
@@ -230,14 +236,66 @@ export default function FichaPacientePage() {
     cargarDocumentos,
   ]);
 
+  // ==========================================
+  // 🟢 GUARDAR HISTORIA DINÁMICA
+  // ==========================================
+  const guardarHistoriaDinamica = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!plantillaDinamica) return;
+    setGuardandoHistoria(true);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (idHistoriaDinamica) {
+        // Actualizar
+        await supabase
+          .from("historias_dinamicas_pacientes")
+          .update({ respuestas_json: respuestasDinamicas })
+          .eq("id", idHistoriaDinamica);
+      } else {
+        // Insertar
+        const { data } = await supabase
+          .from("historias_dinamicas_pacientes")
+          .insert({
+            plantilla_id: plantillaDinamica.id,
+            paciente_id: pacienteId,
+            profesional_id: session?.user.id,
+            respuestas_json: respuestasDinamicas,
+          })
+          .select()
+          .single();
+
+        if (data) setIdHistoriaDinamica(data.id);
+      }
+
+      alert("✅ Ficha clínica actualizada exitosamente.");
+      setEditandoHistoria(false);
+    } catch (error) {
+      console.error(error);
+      alert("Error al guardar la ficha clínica.");
+    } finally {
+      setGuardandoHistoria(false);
+    }
+  };
+
+  const manejarCambioRespuesta = (
+    campoId: string,
+    valor: string | boolean | string[],
+  ) => {
+    setRespuestasDinamicas((prev) => ({
+      ...prev,
+      [campoId]: valor,
+    }));
+  };
+
   const subirDocumento = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert("El archivo es demasiado grande. Máximo 10MB.");
-      return;
-    }
+    if (file.size > 10 * 1024 * 1024)
+      return alert("El archivo es demasiado grande. Máximo 10MB.");
 
     setSubiendoDoc(true);
     try {
@@ -252,17 +310,7 @@ export default function FichaPacientePage() {
         .select("tenant_id")
         .eq("usuario_id", session.user.id)
         .maybeSingle();
-
-      if (tu?.tenant_id) {
-        tenantID = tu.tenant_id;
-      } else {
-        const { data: hc } = await supabase
-          .from("historias_clinicas")
-          .select("tenant_id")
-          .eq("paciente_id", pacienteId)
-          .maybeSingle();
-        if (hc?.tenant_id) tenantID = hc.tenant_id;
-      }
+      if (tu?.tenant_id) tenantID = tu.tenant_id;
 
       const fileExt = file.name.split(".").pop();
       const fileName = `${pacienteId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -270,13 +318,8 @@ export default function FichaPacientePage() {
       const { error: uploadError } = await supabase.storage
         .from("documentos_pacientes")
         .upload(fileName, file);
-
-      if (uploadError) {
-        console.error("🚨 REPORTE DE STORAGE:", uploadError);
-        throw new Error(
-          `STORAGE RECHAZADO: ${uploadError.message || "La política RLS de Storage bloqueó la subida. Revisa los permisos del bucket."}`,
-        );
-      }
+      if (uploadError)
+        throw new Error(`STORAGE RECHAZADO: ${uploadError.message}`);
 
       const { error: dbError } = await supabase
         .from("documentos_clinicos")
@@ -290,22 +333,11 @@ export default function FichaPacientePage() {
           categoria: "general",
         });
 
-      if (dbError) {
-        console.error("🚨 REPORTE DE BASE DE DATOS:", dbError);
-        throw new Error(
-          `DB RECHAZO: ${dbError.message || "La política RLS de documentos_clinicos bloqueó la escritura."}`,
-        );
-      }
-
+      if (dbError) throw new Error(`DB RECHAZO: ${dbError.message}`);
       alert("✅ Archivo guardado y encriptado exitosamente en la bóveda.");
       cargarDocumentos();
     } catch (error: unknown) {
-      console.error("Error al subir archivo:", error);
-      if (error instanceof Error) {
-        alert(error.message);
-      } else {
-        alert("Error desconocido al procesar el archivo.");
-      }
+      alert(error instanceof Error ? error.message : "Error desconocido.");
     } finally {
       setSubiendoDoc(false);
       e.target.value = "";
@@ -317,12 +349,8 @@ export default function FichaPacientePage() {
       const { data, error } = await supabase.storage
         .from("documentos_pacientes")
         .createSignedUrl(path, 60);
-
-      if (error || !data) {
-        console.error("Error de Supabase al pedir firma:", error);
+      if (error || !data)
         throw new Error("No se pudo obtener la llave de acceso.");
-      }
-
       setVisorDoc({
         url: data.signedUrl,
         tipo: mimeType.includes("pdf") ? "pdf" : "imagen",
@@ -348,7 +376,6 @@ export default function FichaPacientePage() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-
       const { error } = await supabase.from("hcu_evoluciones").insert([
         {
           historia_clinica_id: historiaBase.id,
@@ -360,15 +387,7 @@ export default function FichaPacientePage() {
           intervencion_tecnicas: `PLAN TERAPÉUTICO:\n${nuevaNota.plan}`,
         },
       ]);
-
-      if (error) {
-        alert(
-          "🚨 Detalle del error de base de datos:\n" +
-            JSON.stringify(error, null, 2),
-        );
-        throw error;
-      }
-
+      if (error) throw error;
       setNuevaNota({
         ...nuevaNota,
         subjetivo: "",
@@ -382,38 +401,6 @@ export default function FichaPacientePage() {
       console.error(error);
     } finally {
       setGuardandoNota(false);
-    }
-  };
-
-  const guardarAnamnesis = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!anamnesis) return alert("Error: El expediente anamnesis no existe.");
-    setGuardandoAnamnesis(true);
-    try {
-      const { error } = await supabase
-        .from("anamnesis")
-        .update({
-          motivo_consulta: formAnamnesis.motivo_consulta,
-          antecedentes_medicos: formAnamnesis.antecedentes_personales,
-          antecedentes_familiares: formAnamnesis.antecedentes_familiares,
-          historia_personal: formAnamnesis.historia_personal,
-        })
-        .eq("id", anamnesis.id);
-
-      if (error) {
-        alert(
-          "🚨 Detalle del error de base de datos:\n" +
-            JSON.stringify(error, null, 2),
-        );
-        throw error;
-      }
-
-      await cargarDatosPrincipales();
-      setEditandoAnamnesis(false);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setGuardandoAnamnesis(false);
     }
   };
 
@@ -500,7 +487,7 @@ export default function FichaPacientePage() {
       <div className="flex border-b border-slate-200 mb-8 overflow-x-auto hide-scrollbar">
         {[
           { id: "evolucion", nombre: "Notas de Evolución" },
-          { id: "anamnesis", nombre: "Historia Clínica Inicial" },
+          { id: "historia", nombre: "Ficha Clínica" }, // 🟢 Nueva pestaña dinámica
           { id: "documentos", nombre: "Documentos Adjuntos" },
         ].map((tab) => (
           <button
@@ -514,6 +501,9 @@ export default function FichaPacientePage() {
       </div>
 
       <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 min-h-100">
+        {/* ============================================================== */}
+        {/* PESTAÑA: NOTAS SOAP                                            */}
+        {/* ============================================================== */}
         {pestanaActiva === "evolucion" && (
           <div className="animate-in fade-in duration-300">
             <div className="flex justify-between items-center mb-8">
@@ -564,160 +554,187 @@ export default function FichaPacientePage() {
           </div>
         )}
 
-        {pestanaActiva === "anamnesis" && (
+        {/* ============================================================== */}
+        {/* PESTAÑA: FICHA CLÍNICA (RENDERIZADO DINÁMICO)                  */}
+        {/* ============================================================== */}
+        {pestanaActiva === "historia" && (
           <div className="animate-in fade-in duration-300">
-            <div className="flex justify-between items-center mb-8">
-              <div>
-                <h3 className="text-2xl font-black text-slate-900">
-                  Historia Clínica y Anamnesis
+            {!plantillaDinamica ? (
+              <div className="p-12 border-2 border-dashed border-slate-300 rounded-3xl text-center">
+                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                  ⚙️
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">
+                  No tienes una plantilla configurada
                 </h3>
-                <p className="text-slate-500 font-medium mt-1">
-                  Antecedentes estructurados.
+                <p className="text-slate-500 mb-6 max-w-md mx-auto">
+                  Dirígete al Constructor de Fichas para diseñar los campos que
+                  quieres solicitar a tus pacientes.
                 </p>
-              </div>
-              {!editandoAnamnesis && (
-                <button
-                  onClick={() => setEditandoAnamnesis(true)}
-                  className="bg-slate-900 text-white font-bold px-6 py-3 rounded-xl hover:bg-slate-800 transition-all shadow-md"
+                <Link
+                  href="/dashboard-psicologo/constructor-historias"
+                  className="bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl shadow-md"
                 >
-                  Editar Expediente
-                </button>
-              )}
-            </div>
-            {editandoAnamnesis ? (
-              <form
-                onSubmit={guardarAnamnesis}
-                className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6"
-              >
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Motivo de Consulta (Demanda Inicial)
-                  </label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={formAnamnesis.motivo_consulta}
-                    onChange={(e) =>
-                      setFormAnamnesis({
-                        ...formAnamnesis,
-                        motivo_consulta: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
-                  ></textarea>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Antecedentes Personales / Médicos
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={formAnamnesis.antecedentes_personales}
-                      onChange={(e) =>
-                        setFormAnamnesis({
-                          ...formAnamnesis,
-                          antecedentes_personales: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
-                    ></textarea>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Antecedentes Familiares
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={formAnamnesis.antecedentes_familiares}
-                      onChange={(e) =>
-                        setFormAnamnesis({
-                          ...formAnamnesis,
-                          antecedentes_familiares: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
-                    ></textarea>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Historia Personal y Desarrollo
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={formAnamnesis.historia_personal}
-                    onChange={(e) =>
-                      setFormAnamnesis({
-                        ...formAnamnesis,
-                        historia_personal: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 outline-none text-slate-900"
-                  ></textarea>
-                </div>
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setEditandoAnamnesis(false)}
-                    className="px-6 py-3 font-bold text-slate-500 hover:bg-slate-200 rounded-xl"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={guardandoAnamnesis}
-                    className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl"
-                  >
-                    {guardandoAnamnesis ? "..." : "Guardar Expediente"}
-                  </button>
-                </div>
-              </form>
+                  Ir al Constructor
+                </Link>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="md:col-span-2 bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-                  <h5 className="text-sm font-black text-indigo-800 uppercase tracking-wider mb-2">
-                    Motivo de Consulta
-                  </h5>
-                  <p className="text-indigo-950 font-medium whitespace-pre-wrap">
-                    {anamnesis?.motivo_consulta || "Sin registro."}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h5 className="text-sm font-black text-slate-400 uppercase tracking-wider">
-                    Antecedentes Personales
-                  </h5>
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 min-h-24">
-                    <p className="text-slate-700 whitespace-pre-wrap">
-                      {anamnesis?.antecedentes_medicos || "Sin registro."}
+              <div>
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900">
+                      {plantillaDinamica.titulo}
+                    </h3>
+                    <p className="text-slate-500 font-medium mt-1">
+                      Formato de Ficha Personalizada
                     </p>
                   </div>
+                  {!editandoHistoria && (
+                    <button
+                      onClick={() => setEditandoHistoria(true)}
+                      className="bg-slate-900 text-white font-bold px-6 py-3 rounded-xl hover:bg-slate-800 transition-all shadow-md"
+                    >
+                      📝 Editar Respuestas
+                    </button>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <h5 className="text-sm font-black text-slate-400 uppercase tracking-wider">
-                    Antecedentes Familiares
-                  </h5>
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 min-h-24">
-                    <p className="text-slate-700 whitespace-pre-wrap">
-                      {anamnesis?.antecedentes_familiares || "Sin registro."}
-                    </p>
+
+                {editandoHistoria ? (
+                  <form
+                    onSubmit={guardarHistoriaDinamica}
+                    className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6"
+                  >
+                    {plantillaDinamica.campos.map((campo) => (
+                      <div key={campo.id}>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                          {campo.etiqueta}{" "}
+                          {campo.requerido && (
+                            <span className="text-red-500">*</span>
+                          )}
+                        </label>
+
+                        {campo.tipo === "texto_corto" && (
+                          <input
+                            type="text"
+                            required={campo.requerido}
+                            value={
+                              (respuestasDinamicas[campo.id] as string) || ""
+                            }
+                            onChange={(e) =>
+                              manejarCambioRespuesta(campo.id, e.target.value)
+                            }
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 font-medium"
+                          />
+                        )}
+
+                        {campo.tipo === "parrafo" && (
+                          <textarea
+                            rows={4}
+                            required={campo.requerido}
+                            value={
+                              (respuestasDinamicas[campo.id] as string) || ""
+                            }
+                            onChange={(e) =>
+                              manejarCambioRespuesta(campo.id, e.target.value)
+                            }
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 font-medium"
+                          />
+                        )}
+
+                        {campo.tipo === "seleccion" && (
+                          <select
+                            required={campo.requerido}
+                            value={
+                              (respuestasDinamicas[campo.id] as string) || ""
+                            }
+                            onChange={(e) =>
+                              manejarCambioRespuesta(campo.id, e.target.value)
+                            }
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 font-medium bg-white"
+                          >
+                            <option value="">Selecciona una opción...</option>
+                            {campo.opciones?.map((op) => (
+                              <option key={op} value={op}>
+                                {op}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
+                        {campo.tipo === "casilla" && (
+                          <label className="flex items-center gap-3 cursor-pointer mt-2 bg-white p-4 rounded-xl border border-slate-200">
+                            <input
+                              type="checkbox"
+                              required={campo.requerido}
+                              checked={!!respuestasDinamicas[campo.id]}
+                              onChange={(e) =>
+                                manejarCambioRespuesta(
+                                  campo.id,
+                                  e.target.checked,
+                                )
+                              }
+                              className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                            />
+                            <span className="text-slate-700 font-medium">
+                              Sí / Confirmado
+                            </span>
+                          </label>
+                        )}
+                      </div>
+                    ))}
+
+                    <div className="flex justify-end gap-3 pt-6 mt-4 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setEditandoHistoria(false)}
+                        className="px-6 py-3 font-bold text-slate-500 hover:bg-slate-200 rounded-xl"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={guardandoHistoria}
+                        className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-md"
+                      >
+                        {guardandoHistoria
+                          ? "Guardando..."
+                          : "💾 Guardar Ficha"}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {plantillaDinamica.campos.map((campo) => (
+                      <div
+                        key={campo.id}
+                        className={`${campo.tipo === "parrafo" ? "md:col-span-2" : "md:col-span-1"} bg-slate-50 p-6 rounded-2xl border border-slate-100`}
+                      >
+                        <h5 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-2">
+                          {campo.etiqueta}
+                        </h5>
+                        <p className="text-slate-800 font-bold whitespace-pre-wrap">
+                          {campo.tipo === "casilla"
+                            ? respuestasDinamicas[campo.id]
+                              ? "✅ Sí"
+                              : "❌ No"
+                            : respuestasDinamicas[campo.id] || (
+                                <span className="text-slate-400 italic font-normal">
+                                  Sin responder
+                                </span>
+                              )}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                </div>
-                <div className="md:col-span-2 space-y-2">
-                  <h5 className="text-sm font-black text-slate-400 uppercase tracking-wider">
-                    Historia Personal
-                  </h5>
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 min-h-24">
-                    <p className="text-slate-700 whitespace-pre-wrap">
-                      {anamnesis?.historia_personal || "Sin registro."}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>
         )}
 
+        {/* ============================================================== */}
+        {/* PESTAÑA: DOCUMENTOS ADJUNTOS                                   */}
+        {/* ============================================================== */}
         {pestanaActiva === "documentos" && (
           <div className="animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -833,10 +850,9 @@ export default function FichaPacientePage() {
         )}
       </div>
 
-      {/* 🟢 VISOR DE DOCUMENTOS */}
       {visorDoc && (
         <div
-          className="fixed inset-0 bg-slate-900/90 z-10000 flex items-center justify-center p-4 backdrop-blur-sm"
+          className="fixed inset-0 bg-slate-900/90 z-9999 flex items-center justify-center p-4 backdrop-blur-sm"
           onClick={() => setVisorDoc(null)}
         >
           <div
@@ -860,7 +876,7 @@ export default function FichaPacientePage() {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={visorDoc.url}
-                alt="Documento Médico"
+                alt="Documento"
                 className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border-4 border-slate-800"
               />
             )}
@@ -870,7 +886,7 @@ export default function FichaPacientePage() {
 
       {/* Modal de Notas SOAP */}
       {modalNotaAbierto && (
-        <div className="fixed inset-0 bg-slate-900/60 z-9000 flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-2xl font-black text-slate-900">
