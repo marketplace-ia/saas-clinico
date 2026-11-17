@@ -1,5 +1,10 @@
 // 1. Roles existentes en la plataforma
-export type AppRole = "psicologo" | "paciente" | "secretaria" | "admin";
+export type AppRole =
+  | "psicologo"
+  | "paciente"
+  | "medico"
+  | "secretaria"
+  | "admin";
 
 // 2. Tipos de acciones que el asistente puede ejecutar
 export type ActionCategory =

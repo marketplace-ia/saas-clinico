@@ -18,7 +18,7 @@ interface ChatContextProps {
   messages: Message[];
   isTyping: boolean;
   sendMessage: (text: string) => void;
-  userRole: AppRole | null;
+  userRole: AppRole | null; // 🟢 TypeScript validará esto usando types.ts
 }
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
@@ -35,15 +35,26 @@ export const AssistantProvider = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
 
+  // 🟢 SALUDO PERSONALIZADO POR ROL
+  const obtenerSugerenciasIniciales = (rol: AppRole | null) => {
+    if (rol === "medico") {
+      return [
+        "Llevame a mi Agenda Médica",
+        "Ver historiales clínicos",
+        "Ayúdame con CIE-10",
+      ];
+    } else if (rol === "psicologo") {
+      return ["Llevame a mi Agenda", "Registrar paciente", "Ver mis ingresos"];
+    }
+    return ["Agendar una cita", "Explorar recursos"];
+  };
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-1",
       sender: "assistant",
       text: "¡Hola! 👋 Soy el Copiloto Clínico de Clinesfera potenciado por IA. Estoy conectado a toda la plataforma. ¿En qué te puedo asistir hoy?",
-      quickActions:
-        userRole === "psicologo"
-          ? ["Llevame a mi Agenda", "Registrar paciente", "Ver mis ingresos"]
-          : ["Agendar una cita", "Explorar recursos"],
+      quickActions: obtenerSugerenciasIniciales(userRole),
     },
   ]);
 
@@ -75,7 +86,6 @@ export const AssistantProvider = ({
         }),
       });
 
-      // 🟢 CORRECCIÓN: Extractor de Errores Detallados
       if (!res.ok) {
         let errorDetallado = "Fallo desconocido en el servidor.";
         try {
@@ -114,7 +124,6 @@ export const AssistantProvider = ({
 
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (error) {
-      // 🟢 Ahora veremos el error real de Gemini en la consola del navegador
       console.error("🚨 Error del Copiloto capturado:", error);
       setMessages((prev) => [
         ...prev,

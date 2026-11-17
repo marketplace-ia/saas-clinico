@@ -19,6 +19,7 @@ interface AuthTranslation {
   googleBtn: string;
   tabPatient: string;
   tabDoc: string;
+  tabMedic: string; // 🟢 Nueva traducción
 }
 
 const translations: Record<LangType, AuthTranslation> = {
@@ -34,7 +35,8 @@ const translations: Record<LangType, AuthTranslation> = {
     or: "O regístrate con",
     googleBtn: "Continuar con Google",
     tabPatient: "Soy Paciente",
-    tabDoc: "Soy Especialista",
+    tabDoc: "Soy Psicólogo",
+    tabMedic: "Soy Médico",
   },
   en: {
     title: "Start your journey",
@@ -48,7 +50,8 @@ const translations: Record<LangType, AuthTranslation> = {
     or: "Or sign up with",
     googleBtn: "Continue with Google",
     tabPatient: "I am a Patient",
-    tabDoc: "I am a Specialist",
+    tabDoc: "I am a Psychologist",
+    tabMedic: "I am a Doctor",
   },
   zh: {
     title: "开始你的旅程",
@@ -62,7 +65,8 @@ const translations: Record<LangType, AuthTranslation> = {
     or: "或使用以下方式注册",
     googleBtn: "使用 Google 继续",
     tabPatient: "我是患者",
-    tabDoc: "我是专家",
+    tabDoc: "我是心理学家",
+    tabMedic: "我是医生",
   },
   hi: {
     title: "अपनी यात्रा शुरू करें",
@@ -76,7 +80,8 @@ const translations: Record<LangType, AuthTranslation> = {
     or: "या इसके साथ पंजीकरण करें",
     googleBtn: "Google के साथ जारी रखें",
     tabPatient: "मैं एक मरीज हूँ",
-    tabDoc: "मैं एक विशेषज्ञ हूँ",
+    tabDoc: "मैं एक मनोवैज्ञानिक हूँ",
+    tabMedic: "मैं एक डॉक्टर हूँ",
   },
   fr: {
     title: "Commencez votre voyage",
@@ -90,7 +95,8 @@ const translations: Record<LangType, AuthTranslation> = {
     or: "Ou inscrivez-vous avec",
     googleBtn: "Continuer avec Google",
     tabPatient: "Je suis un patient",
-    tabDoc: "Je suis un spécialiste",
+    tabDoc: "Je suis psychologue",
+    tabMedic: "Je suis médecin",
   },
   ar: {
     title: "ابدأ رحلتك",
@@ -104,14 +110,16 @@ const translations: Record<LangType, AuthTranslation> = {
     or: "أو سجل باستخدام",
     googleBtn: "المتابعة باستخدام Google",
     tabPatient: "أنا مريض",
-    tabDoc: "أنا متخصص",
+    tabDoc: "أنا طبيب نفساني",
+    tabMedic: "أنا طبيب",
   },
 };
 
 export default function RegistroPage() {
-  const [tipoCuenta, setTipoCuenta] = useState<"paciente" | "psicologo">(
-    "paciente",
-  );
+  // 🟢 Añadimos "medico" a los tipos de cuenta permitidos
+  const [tipoCuenta, setTipoCuenta] = useState<
+    "paciente" | "psicologo" | "medico"
+  >("paciente");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -157,8 +165,11 @@ export default function RegistroPage() {
           }
         }
 
+        // 🟢 Enrutador Inteligente
         if (rolFinal === "psicologo") {
           router.push("/dashboard-psicologo");
+        } else if (rolFinal === "medico") {
+          router.push("/dashboard-medico");
         } else {
           router.push("/dashboard-paciente");
         }
@@ -185,11 +196,9 @@ export default function RegistroPage() {
         throw new Error(`Error al registrar: ${signUpError.message}`);
 
       if (data.session) {
-        router.push(
-          tipoCuenta === "psicologo"
-            ? "/dashboard-psicologo"
-            : "/dashboard-paciente",
-        );
+        if (tipoCuenta === "psicologo") router.push("/dashboard-psicologo");
+        else if (tipoCuenta === "medico") router.push("/dashboard-medico");
+        else router.push("/dashboard-paciente");
       } else {
         setError("Por favor, revisa tu correo para confirmar tu cuenta.");
       }
@@ -218,16 +227,20 @@ export default function RegistroPage() {
     setIngresandoDemo(true);
     setError("");
     try {
-      localStorage.setItem("Clinesfera_registro_rol", "psicologo");
+      localStorage.setItem("Clinesfera_registro_rol", tipoCuenta);
 
       const { error } = await supabase.auth.signInWithPassword({
-        email: "demo@clinesfera.com",
+        // Si elige Médico, usamos una cuenta demo médica
+        email:
+          tipoCuenta === "medico"
+            ? "demo-medico@clinesfera.com"
+            : "demo@clinesfera.com",
         password: "demo-password-123",
       });
 
       if (error) {
         setError(
-          "⚠️ Por seguridad, debes crear primero el usuario 'demo@clinesfera.com' en tu panel de Supabase para activar esta puerta.",
+          `⚠️ Crea el usuario '${tipoCuenta === "medico" ? "demo-medico" : "demo"}@clinesfera.com' en Supabase para activar esta puerta.`,
         );
       }
     } catch (err: unknown) {
@@ -236,6 +249,9 @@ export default function RegistroPage() {
       setIngresandoDemo(false);
     }
   };
+
+  // Verificamos si es un profesional de la salud (para mostrar advertencias y botón VIP)
+  const esProfesional = tipoCuenta === "psicologo" || tipoCuenta === "medico";
 
   return (
     <div
@@ -277,7 +293,7 @@ export default function RegistroPage() {
           </h1>
           <p className="text-indigo-100 text-lg mb-12 max-w-md leading-relaxed font-medium">
             Clinesfera es el software SaaS integral diseñado exclusivamente para
-            profesionales de la salud mental.
+            profesionales de la salud.
           </p>
 
           <div className="space-y-6">
@@ -318,7 +334,7 @@ export default function RegistroPage() {
                 </svg>
               </div>
               <p className="font-bold text-white/90 text-sm">
-                Historias Clínicas blindadas y encriptadas.
+                Historias Clínicas blindadas, CIE-10 y Recetas Electrónicas.
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -338,7 +354,7 @@ export default function RegistroPage() {
                 </svg>
               </div>
               <p className="font-bold text-white/90 text-sm">
-                Portal exclusivo para pacientes y recaudación.
+                Portal exclusivo para pacientes y telemedicina.
               </p>
             </div>
           </div>
@@ -407,7 +423,8 @@ export default function RegistroPage() {
             </Link>
           </p>
 
-          <div className="flex bg-slate-200/50 p-1.5 rounded-xl mb-6">
+          {/* 🟢 NUEVAS PESTAÑAS: 3 Opciones (Paciente, Psicólogo, Médico) */}
+          <div className="flex flex-col sm:flex-row bg-slate-200/50 p-1.5 rounded-xl mb-6 gap-1.5">
             <button
               type="button"
               onClick={() => setTipoCuenta("paciente")}
@@ -422,12 +439,17 @@ export default function RegistroPage() {
             >
               {t.tabDoc}
             </button>
+            <button
+              type="button"
+              onClick={() => setTipoCuenta("medico")}
+              className={`flex-1 py-3 rounded-lg text-sm font-black transition-all ${tipoCuenta === "medico" ? "bg-white shadow-sm text-indigo-600" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              {t.tabMedic}
+            </button>
           </div>
 
-          {/* =========================================
-              🟢 LA PUERTA MÁGICA: ARRIBA COMO PASE VIP
-              ========================================= */}
-          {tipoCuenta === "psicologo" && (
+          {/* 🟢 LA PUERTA MÁGICA: DISPONIBLE PARA AMBOS PROFESIONALES */}
+          {esProfesional && (
             <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
               <button
                 onClick={handleTourVirtual}
@@ -455,11 +477,12 @@ export default function RegistroPage() {
                           : "Tour Interactivo Gratis"}
                       </p>
                       <p className="text-amber-50 font-bold text-xs drop-shadow-sm opacity-90">
-                        Prueba el sistema completo sin registrarte
+                        Prueba el sistema clínico sin registrarte
                       </p>
                     </div>
                   </div>
 
+                  {/* 🟢 LINTER FIX: Se removió el primer 'flex' */}
                   {!ingresandoDemo && (
                     <div className="w-10 h-10 bg-white/20 rounded-full items-center justify-center backdrop-blur-sm shrink-0 group-hover:bg-white/30 transition-colors shadow-inner hidden sm:flex">
                       <svg
@@ -524,7 +547,7 @@ export default function RegistroPage() {
               />
             </div>
 
-            {tipoCuenta === "psicologo" && (
+            {esProfesional && (
               <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mt-2">
                 <p className="text-xs font-bold text-indigo-800 flex items-center gap-2">
                   <svg
@@ -544,7 +567,7 @@ export default function RegistroPage() {
                 </p>
                 <p className="text-xs text-indigo-600/80 mt-1 font-medium">
                   Podrás registrarte gratis. Luego deberás adjuntar tu
-                  certificado de la SENESCYT para activar tu clínica.
+                  certificado de la SENESCYT / MSP para activar tu clínica.
                 </p>
               </div>
             )}
